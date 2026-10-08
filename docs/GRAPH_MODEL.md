@@ -24,12 +24,18 @@ label), plus node provenance `src_type`, `src_ref`, `observed_at`,
 | **Project** | `key`, `name` | `status` | — |
 | **Repository** | `key`, `name` | `url` | — |
 | **Service** | `key`, `name` | `status` | — |
-| **Document** | `key`, `title`, `kind` (adr/runbook/spec/note) | `url` | — |
+| **Document** | `key`, `title`, `kind` (adr/runbook/spec/note) | `url` | `published_at` (optional — see amendment) |
 | **Decision** | `key`, `title`, `status` (proposed/accepted/rejected/superseded) | — | `decided_at` |
 | **Meeting** | `key`, `title` | — | `held_at` (required at ingest) |
 | **Incident** | `key`, `title` | `severity`, `resolved_at` | `started_at` (required at ingest) |
 | **PullRequest** | `key`, `title`, `number`, `state` (open/merged/closed) | — | `created_at`, `merged_at` |
 | **Technology** | `key`, `name` | — | — |
+
+**Amendment (2026-10-08, scaffold):** `Document.published_at` added as an
+optional native timestamp — the `AUTHORED` row says "event time on
+artifact", but Document had none, leaving `expertise/v1`'s doc signal
+(0.8) unable to decay. Null is allowed: an undated document scores with
+age 0 (no decay) until a source provides the date.
 
 ### Deferred entities (and why)
 

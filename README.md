@@ -2,14 +2,17 @@
 
 **Trusted Reasoning & Organizational Nexus**
 
-[![Status](https://img.shields.io/badge/Status-PRE--HACKATHON%20FOUNDATION-orange.svg)](docs/HACKATHON.md)
+[![Status](https://img.shields.io/badge/Status-Active%20Development-brightgreen.svg)](docs/architecture-minimal.md)
 [![Hackathon](https://img.shields.io/badge/Hackathon-Graph%20Hacks%3A%20Context%20for%20AI%20Agents-blue.svg)](https://wemakedevs.org/hackathons/falkordb-graph-hacks)
 
 ## Status
 
-**PRE-HACKATHON FOUNDATION PHASE** — Implementation begins only during the official Graph Hacks build window.
-
-See [docs/HACKATHON.md](docs/HACKATHON.md) for pre-hackathon vs hackathon work boundaries.
+**ACTIVE DEVELOPMENT** — architecture is locked: Go + FalkorDB,
+five-layer knowledge model, graph operation boundary.
+See [docs/architecture-minimal.md](docs/architecture-minimal.md),
+[docs/knowledge-model.md](docs/knowledge-model.md), and
+[planning/decision-log.md](planning/decision-log.md).
+Graph operations land incrementally, each backed by a real-FalkorDB test.
 
 ## Vision
 
@@ -54,9 +57,19 @@ Graph-central reasoning with provenance. Remove FalkorDB and the product's core 
 - [x] Repository structure
 - [x] Engineering constraints defined
 - [x] Planning foundation documented
-- [ ] Implementation (begins Oct 15, 2026 00:01 AM IST)
+- [x] Architecture lock (stack, knowledge model, graph schema)
+- [x] Go scaffold: FalkorDB client + FindOwner (real-DB test)
+- [x] FindExperts with deterministic expertise/v1 scoring (real-DB test)
+- [ ] Remaining graph operations (TraceDecision, FindRelatedIncidents, TraceEvidence)
+- [ ] Seed data generator
+- [ ] JSON API layer
 
 ---
 
-**IMPORTANT**: This is PRE-HACKATHON FOUNDATION ONLY. No product implementation yet. All specifications are design proposals marked appropriately.
+**Architecture is locked** — see
+[docs/architecture-minimal.md](docs/architecture-minimal.md) and
+[planning/decision-log.md](planning/decision-log.md). Older hackathon-era
+documents (e.g. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+[docs/HACKATHON.md](docs/HACKATHON.md)) are retained for history and
+marked as superseded where they conflict.
 
