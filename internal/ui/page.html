@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRON — Company Brain</title>
+<style>
+  :root {
+    --ink: #1a1d23; --muted: #5f6672; --line: #e3e6eb; --bg: #f6f7f9;
+    --fact: #1b7f3b; --inference: #b25e00; --rec: #1756c4;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+         background: var(--bg); color: var(--ink); }
+  header { background: var(--ink); color: #fff; padding: 14px 24px;
+           display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  header h1 { margin: 0; font-size: 18px; letter-spacing: .04em; }
+  header .tag { color: #9aa3b2; font-size: 12.5px; font-family: ui-monospace, monospace; }
+  main { max-width: 940px; margin: 0 auto; padding: 20px 24px 48px; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  nav a { text-decoration: none; background: #fff; border: 1px solid var(--line);
+          border-radius: 999px; padding: 7px 14px; font-size: 13.5px; color: var(--ink); }
+  nav a:hover { border-color: var(--ink); }
+  nav a.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .answer { background: #fff; border: 1px solid var(--line); border-radius: 10px;
+            padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .answer .q { font-size: 12.5px; text-transform: uppercase; letter-spacing: .07em;
+               color: var(--muted); margin-bottom: 6px; }
+  .answer .a { font-size: 17px; margin: 0 0 10px; }
+  .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+          font-size: 12.5px; color: var(--muted); }
+  .meta code { background: var(--bg); border-radius: 4px; padding: 1px 6px; }
+  .badge { font-size: 11px; font-weight: 700; letter-spacing: .06em;
+           border-radius: 4px; padding: 2px 7px; color: #fff; }
+  .badge.FACT { background: var(--fact); }
+  .badge.INFERENCE { background: var(--inference); }
+  .badge.RECOMMENDATION { background: var(--rec); }
+  .claims { list-style: none; padding: 0; margin: 12px 0 0; }
+  .claims > li { border-top: 1px dashed var(--line); padding: 9px 0; }
+  .claims .ctext { margin-right: 6px; }
+  .paths { list-style: none; padding: 0; margin: 6px 0 0; }
+  .paths li { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 12px;
+              color: var(--muted); background: var(--bg); border-radius: 4px;
+              padding: 3px 8px; margin-top: 4px; overflow-x: auto; white-space: pre-wrap; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px;
+          padding: 14px 20px; margin-bottom: 14px; }
+  .card h3 { margin: 2px 0 10px; font-size: 13px; text-transform: uppercase;
+             letter-spacing: .06em; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line);
+           vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .note { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 12px;
+          color: var(--muted); margin: 7px 0 0; overflow-x: auto; }
+  .home { background: #fff; border: 1px solid var(--line); border-radius: 10px;
+          padding: 22px 24px; }
+  .home h2 { margin-top: 0; font-size: 17px; }
+  .home p { color: var(--muted); max-width: 640px; }
+  footer { text-align: center; color: var(--muted); font-size: 12.5px;
+           font-family: ui-monospace, monospace; padding-bottom: 24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>TRON — Trusted Reasoning &amp; Organizational Nexus</h1>
+  <span class="tag">Company Brain · FalkorDB · evidence-backed · no LLM in this path</span>
+</header>
+<main>
+  <nav>
+    {{range .Questions}}<a href="/?q={{.ID}}"{{if eq $.Active .ID}} class="active"{{end}}>{{.Title}}</a>{{end}}
+  </nav>
+
+  {{with .Answer}}
+  <section class="answer">
+    <div class="q">{{.Question}}</div>
+    <p class="a">{{.Answer}}</p>
+    <div class="meta">
+      <span class="badge {{.Layer}}">{{.Layer}}</span>
+      {{range .OperationsUsed}}<code>{{.}}</code>{{end}}
+    </div>
+    {{if .Claims}}
+    <ul class="claims">
+      {{range .Claims}}
+      <li>
+        <span class="badge {{.Layer}}">{{.Layer}}</span>
+        <span class="ctext">{{.Text}}</span>{{if .RuleID}} <code>{{.RuleID}}</code>{{end}}
+        <ul class="paths">{{range .Paths}}<li>{{.}}</li>{{end}}</ul>
+      </li>
+      {{end}}
+    </ul>
+    {{end}}
+  </section>
+  {{end}}
+
+  {{range .Sections}}
+  <section class="card">
+    <h3>{{.Title}}</h3>
+    {{if .Rows}}
+    <table>
+      {{with .Header}}<tr>{{range .}}<th>{{.}}</th>{{end}}</tr>{{end}}
+      {{range .Rows}}<tr>{{range .}}<td>{{.}}</td>{{end}}</tr>{{end}}
+    </table>
+    {{end}}
+    {{range .Notes}}<p class="note">{{.}}</p>{{end}}
+  </section>
+  {{end}}
+
+  {{if not .Answer}}
+  <div class="home">
+    <h2>Five deterministic questions, straight from the graph</h2>
+    <p>Pick a question above. Each answer is assembled by bounded graph
+    operations (<code>internal/graph</code>) and rendered only if every
+    claim is layer-tagged and evidence-backed — the response type
+    refuses anything else. Paths and provenance in the panels come from
+    FalkorDB itself, not from a language model.</p>
+    <p>The JSON contract behind this page is the same
+    <code>/v1/*</code> API an agent layer can drive once an LLM
+    provider is chosen.</p>
+  </div>
+  {{end}}
+</main>
+<footer>graph operations · provenance on every edge · remove FalkorDB and this page breaks</footer>
+</body>
+</html>

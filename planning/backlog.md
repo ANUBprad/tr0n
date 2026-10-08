@@ -22,7 +22,7 @@
 - [x] Implement find_experts, trace_decision, find_related_incidents
 - [x] Implement trace_evidence (minimal)
 - [x] Agent loop with deliberate retrieval
-- [ ] Evidence extraction/format
+- [x] Evidence extraction/format
 
 ### P2 — Integration + API (Hours 24–36)
 - [x] HTTP API endpoints (Go net/http)
@@ -31,9 +31,9 @@
 - [x] Error handling basics
 
 ### P3 — UI + Demo (Hours 36–48)
-- [ ] Minimal Q&A UI
-- [ ] Evidence panel (paths)
-- [ ] All 5 queries working
+- [x] Minimal Q&A UI
+- [x] Evidence panel (paths)
+- [x] All 5 queries working
 - [ ] Demo script validation
 
 ### P4 — Polish/Submission (Hours 48–72)

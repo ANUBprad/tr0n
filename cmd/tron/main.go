@@ -1,5 +1,5 @@
 // tron is a thin CLI over the graph operation boundary: query one
-// op, reseed the graph, or serve the JSON API the agent/UI consumes
+// op, reseed the graph, or serve the Q&A UI + JSON API
 // (docs/AGENT_SPEC.md).
 package main
 
@@ -12,6 +12,7 @@ import (
 	"github.com/ANUBprad/tr0n/internal/api"
 	"github.com/ANUBprad/tr0n/internal/graph"
 	"github.com/ANUBprad/tr0n/internal/seed"
+	"github.com/ANUBprad/tr0n/internal/ui"
 )
 
 func main() {
@@ -45,14 +46,17 @@ func main() {
 		if httpAddr == "" {
 			httpAddr = "127.0.0.1:8080"
 		}
-		fmt.Printf("tron api listening on http://%s\n", httpAddr)
-		if err := http.ListenAndServe(httpAddr, api.Handler(c)); err != nil {
+		mux := http.NewServeMux()
+		mux.Handle("/v1/", api.Handler(c))
+		mux.Handle("/", ui.Handler(c))
+		fmt.Printf("tron listening on http://%s (Q&A UI at /, JSON API at /v1)\n", httpAddr)
+		if err := http.ListenAndServe(httpAddr, mux); err != nil {
 			fatal(err)
 		}
 	default:
 		fmt.Fprintln(os.Stderr, "usage: tron owner <entity-name-or-key>")
 		fmt.Fprintln(os.Stderr, "       tron seed          recreate the synthetic graph (destructive)")
-		fmt.Fprintln(os.Stderr, "       tron serve         serve the JSON API (TRON_HTTP_ADDR)")
+		fmt.Fprintln(os.Stderr, "       tron serve         serve the Q&A UI + JSON API (TRON_HTTP_ADDR)")
 		os.Exit(2)
 	}
 }
