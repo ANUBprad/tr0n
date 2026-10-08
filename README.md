@@ -66,7 +66,21 @@ Graph-central reasoning with provenance. Remove FalkorDB and the product's core 
 - [x] ResolveEntity: deterministic internal resolver (exact key → exact name → case-insensitive → prefix)
 - [x] All five graph operations implemented with real-DB tests
 - [x] Seed data generator: deterministic `internal/seed` + `tron seed` (five-query connectivity contract tested)
-- [ ] JSON API layer
+- [x] JSON API layer: read-only `internal/api` over all six ops (`tron serve`, real-DB HTTP contract test)
+
+## Quick Start
+
+```bash
+docker compose up -d                          # FalkorDB on :6379
+go run ./cmd/tron seed                        # synthetic graph (destructive reseed)
+go run ./cmd/tron serve                       # JSON API on http://127.0.0.1:8080
+curl -s http://127.0.0.1:8080/v1/owner -d '{"target":"payments-api"}'
+```
+
+`TRON_FALKOR_ADDR` (default `localhost:6379`) and `TRON_HTTP_ADDR`
+(default `127.0.0.1:8080`) override the endpoints. `go test ./... -short`
+runs the pure tests without Docker; drop `-short` for the full
+real-FalkorDB suite.
 
 ---
 

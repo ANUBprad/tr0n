@@ -37,6 +37,12 @@ func allowed(set []string, s string) bool {
 	return false
 }
 
+// Ping verifies the graph answers — the health endpoint's check.
+func (c *Client) Ping() error {
+	_, err := c.g.ROQuery("RETURN 1", nil, nil)
+	return err
+}
+
 // Delete removes the whole graph — test cleanup and the reset path.
 func (c *Client) Delete() error {
 	return c.g.Delete()
