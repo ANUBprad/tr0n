@@ -408,6 +408,147 @@ func (c *Client) FindRelatedIncidents(serviceKey, since, keyword string) ([]Inci
 	return out, nil
 }
 
+// NodeEvidence is one input key re-fetched in full plus one hop of
+// surrounding context (AGENT_SPEC TraceEvidence — the "why do you
+// believe this?" drill-down).
+type NodeEvidence struct {
+	Key        string                 `json:"key"`
+	Label      string                 `json:"label"`
+	Name       string                 `json:"name,omitempty"`
+	Found      bool                   `json:"found"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
+	Edges      []EdgeEvidence         `json:"edges"`
+}
+
+type EdgeEvidence struct {
+	Relation   string               `json:"relation"`
+	Direction  string               `json:"direction"` // from the input key's view
+	Neighbor   NodeRef              `json:"neighbor"`
+	Provenance knowledge.Provenance `json:"provenance"`
+}
+
+type NodeRef struct {
+	Label string `json:"label"`
+	Key   string `json:"key"`
+	Name  string `json:"name,omitempty"`
+}
+
+// TraceEvidence re-fetches previously returned keys with full node
+// properties and every adjacent edge (both directions) with complete
+// provenance. Order follows the input; unknown keys come back with
+// found=false instead of silently vanishing.
+// ponytail: 3 queries total regardless of input size; upgrade path =
+// single batched query if drill-down latency is ever measured.
+func (c *Client) TraceEvidence(keys []string) ([]NodeEvidence, error) {
+	out := make([]NodeEvidence, 0, len(keys))
+	if len(keys) == 0 {
+		return out, nil
+	}
+	byKey := map[string]*NodeEvidence{}
+
+	res, err := c.g.ROQuery(`
+	MATCH (n) WHERE n.key IN $keys
+	RETURN labels(n)[0] AS label, n.key AS key, coalesce(n.name, n.title) AS name,
+	       properties(n) AS props`,
+		map[string]interface{}{"keys": keys}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("evidence nodes: %w", err)
+	}
+	for res.Next() {
+		rec := res.Record()
+		e := &NodeEvidence{
+			Key: field(rec, "key"), Label: field(rec, "label"),
+			Name: field(rec, "name"), Found: true,
+			Edges: []EdgeEvidence{},
+		}
+		if props, ok := rec.Get("props"); ok {
+			if m, ok := props.(map[string]interface{}); ok {
+				e.Properties = m
+			}
+		}
+		byKey[e.Key] = e
+	}
+
+	edgeQuery := func(q, dir string) error {
+		res, err := c.g.ROQuery(q, map[string]interface{}{"keys": keys}, nil)
+		if err != nil {
+			return err
+		}
+		for res.Next() {
+			rec := res.Record()
+			src := field(rec, "src_key")
+			e, ok := byKey[src]
+			if !ok {
+				continue
+			}
+			e.Edges = append(e.Edges, EdgeEvidence{
+				Relation:   field(rec, "relation"),
+				Direction:  dir,
+				Neighbor:   NodeRef{Label: field(rec, "neighbor_label"), Key: field(rec, "neighbor_key"), Name: field(rec, "neighbor_name")},
+				Provenance: provEdgeProps(rec),
+			})
+		}
+		return nil
+	}
+	if err := edgeQuery(`
+	MATCH (n)-[r]->(m) WHERE n.key IN $keys
+	RETURN n.key AS src_key, type(r) AS relation,
+	       m.key AS neighbor_key, labels(m)[0] AS neighbor_label,
+	       coalesce(m.name, m.title) AS neighbor_name,
+	       properties(r) AS edge_props`, "out"); err != nil {
+		return nil, fmt.Errorf("evidence out-edges: %w", err)
+	}
+	if err := edgeQuery(`
+	MATCH (m)-[r]->(n) WHERE n.key IN $keys
+	RETURN n.key AS src_key, type(r) AS relation,
+	       m.key AS neighbor_key, labels(m)[0] AS neighbor_label,
+	       coalesce(m.name, m.title) AS neighbor_name,
+	       properties(r) AS edge_props`, "in"); err != nil {
+		return nil, fmt.Errorf("evidence in-edges: %w", err)
+	}
+
+	for _, k := range keys {
+		if e, ok := byKey[k]; ok {
+			sortEvidenceEdges(e.Edges)
+			out = append(out, *e)
+			continue
+		}
+		out = append(out, NodeEvidence{Key: k, Found: false, Edges: []EdgeEvidence{}})
+	}
+	return out, nil
+}
+
+// provEdgeProps builds Provenance from a properties(r) map — complete
+// edge provenance in one column.
+func provEdgeProps(rec *falkordb.Record) knowledge.Provenance {
+	m, _ := rec.Get("edge_props")
+	props, _ := m.(map[string]interface{})
+	str := func(k string) string {
+		s, _ := props[k].(string)
+		return s
+	}
+	return knowledge.Provenance{
+		SrcType:    str("src_type"),
+		SrcRef:     str("src_ref"),
+		ObservedAt: str("observed_at"),
+		Extraction: str("extraction"),
+		ValidFrom:  str("valid_from"),
+		ValidTo:    str("valid_to"),
+	}
+}
+
+func sortEvidenceEdges(edges []EdgeEvidence) {
+	sort.Slice(edges, func(i, j int) bool {
+		if edges[i].Direction != edges[j].Direction {
+			return edges[i].Direction == "out"
+		}
+		if edges[i].Relation != edges[j].Relation {
+			return edges[i].Relation < edges[j].Relation
+		}
+		return edges[i].Neighbor.Key < edges[j].Neighbor.Key
+	})
+}
+
 // recProvenance assembles the provenance columns a query returned.
 func recProvenance(rec *falkordb.Record) knowledge.Provenance {
 	return provFrom(rec, "")

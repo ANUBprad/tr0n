@@ -405,6 +405,70 @@ func TestFindRelatedIncidents(t *testing.T) {
 	})
 }
 
+// Re-fetch with full properties + 1-hop context, both directions,
+// complete provenance — the drill-down behind "why do you believe this?".
+func TestTraceEvidence(t *testing.T) {
+	c := newTestClient(t)
+
+	prov := `{src_type: 'adr_repo', src_ref: 'adr/0007', observed_at: '2026-10-01T00:00:00Z', extraction: 'deterministic', valid_from: '2026-01-01T00:00:00Z'}`
+	seed := `
+	CREATE (ada:Person {key: 'person:ada', name: 'Ada', team: 'platform'}),
+	       (svc:Service {key: 'service:payments', name: 'payments-api'}),
+	       (inc:Incident {key: 'incident:1', title: 'Payment gateway timeout'}),
+	       (ada)-[:OWNS ` + prov + `]->(svc),
+	       (inc)-[:RESOLVED_BY ` + prov + `]->(ada),
+	       (inc)-[:AFFECTS ` + prov + `]->(svc)`
+	if _, err := c.g.Query(seed, nil, nil); err != nil {
+		t.Fatalf("seed fixture: %v", err)
+	}
+
+	keys := []string{"person:ada", "service:payments", "person:ghost"}
+	ev, err := c.TraceEvidence(keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ev) != 3 || ev[0].Key != "person:ada" || ev[1].Key != "service:payments" ||
+		ev[2].Key != "person:ghost" {
+		t.Fatalf("input order must be preserved: %+v", ev)
+	}
+
+	ada := ev[0]
+	if !ada.Found || ada.Label != "Person" || ada.Properties["team"] != "platform" ||
+		len(ada.Edges) != 2 {
+		t.Fatalf("ada full refetch: %+v", ada)
+	}
+	if e := ada.Edges[0]; e.Relation != "OWNS" || e.Direction != "out" ||
+		e.Neighbor.Key != "service:payments" || e.Provenance.SrcRef != "adr/0007" ||
+		e.Provenance.ValidFrom != "2026-01-01T00:00:00Z" {
+		t.Errorf("out edge: %+v", e)
+	}
+	if e := ada.Edges[1]; e.Relation != "RESOLVED_BY" || e.Direction != "in" ||
+		e.Neighbor.Key != "incident:1" || e.Neighbor.Label != "Incident" {
+		t.Errorf("in edge: %+v", e)
+	}
+
+	svc := ev[1]
+	if !svc.Found || len(svc.Edges) != 2 {
+		t.Fatalf("svc: %+v", svc)
+	}
+	for _, e := range svc.Edges {
+		if e.Provenance.SrcType != "adr_repo" {
+			t.Errorf("every edge carries provenance: %+v", e)
+		}
+	}
+	if svc.Edges[0].Direction != "in" || svc.Edges[1].Direction != "in" {
+		t.Errorf("svc only has inbound edges: %+v", svc.Edges)
+	}
+
+	if ev[2].Found || len(ev[2].Edges) != 0 {
+		t.Errorf("unknown key must surface as found=false, not vanish: %+v", ev[2])
+	}
+
+	if empty, err := c.TraceEvidence(nil); err != nil || len(empty) != 0 {
+		t.Errorf("empty input: %v, %v", empty, err)
+	}
+}
+
 func basisByClass(t *testing.T, e knowledge.Expert, class string) knowledge.Basis {
 	t.Helper()
 	for _, b := range e.Basis {
