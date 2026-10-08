@@ -69,5 +69,11 @@ coverage/
 .mypy_cache/
 .ruff_cache/
 
+# Go
+/bin/
+/tron
+*.test
+*.exe
+
 # Keep planning/artifacts as-is (docs, diagrams, planning)
 

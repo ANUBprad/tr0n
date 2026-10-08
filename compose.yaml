@@ -1,0 +1,8 @@
+# Local-first stack: FalkorDB (Redis module) is the only required service.
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "6379:6379"
+    # ponytail: no volume — local dev graph is disposable; add
+    # volumes: [falkordb-data:/data] when persistence matters.

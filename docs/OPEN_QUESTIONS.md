@@ -13,12 +13,12 @@ decided — never decide silently in a spec.
 | Evidence presentation | **Layer-tagged claims + path lists per answer** (`AGENT_SPEC.md`) |
 | Tool interface (direct vs MCP) | **In-process Go functions behind one JSON API**; MCP only ever as an optional external adapter, if a consumer exists |
 | Action mechanism | **Deferred by design**: ACTION layer + `prepare_handoff` live above the graph boundary, built only when the core is proven (`AGENT_SPEC.md`) |
+| FalkorDB/Redis Go client | **`falkordb-go/v2`** (official, BSD-3, graph-aware: `SelectGraph`/`ROQuery` with typed records; pulls `go-redis/v9` transitively). `rueidis` rejected: generic client would mean hand-parsing `GRAPH.QUERY` results |
 
 ## Still open
 
 | Question | Options | Notes |
 |---|---|---|
-| **FalkorDB/Redis Go client** | official `falkordb-go` vs `rueidis` | Decide at scaffold by inspecting both repos (API surface, RESP3, maintenance). One dep either way. |
 | **LLM Provider** | OpenAI / Anthropic / Local (Ollama) / Gemini | UNDECIDED. Irrelevant to v1 core (no LLM needed); matters only for the future agent layer. Consider cost, rate limits, local fallback. |
 | **Agent framework** | Custom minimal loop vs library | UNDECIDED. When the agent layer lands, prefer minimal tool-calling loop; no framework unless proven necessary. |
 | **Frontend** | Server-rendered minimal page / Vite+React / CLI-first | UNDECIDED. API-first makes this late-stage and cheap to change. |

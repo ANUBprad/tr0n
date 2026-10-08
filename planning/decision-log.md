@@ -40,6 +40,7 @@ Record each decision as:
 | **Initial schema: 11 entities, 16 relationships (cut: KNOWS, RELATED_TO, CAUSED, MEMBER_OF, IMPLEMENTS; added: HAS_REPO, ABOUT, USES)** | Every relationship must be an explicit source-derived fact or it is not a fact | Broad 14-entity/17-relationship candidate schema | Deferred entities re-enter only when a real query needs them | DECIDED |
 | **Graph boundary = 5 deterministic operations + ResolveEntity; prepare_handoff deferred to agent layer** | Small, testable, no LLM required for v1 core; compositions belong above the boundary | 7-tool surface incl. fuzzy search + handoff | Fuzzy/entity search deferred until an embedding story exists | DECIDED |
 | **Test against real FalkorDB in Docker; no mock graph interfaces** | The graph's behavior is the behavior under test | Interface + mock layer | Tests need Docker; correctness is worth it | DECIDED |
+| **FalkorDB Go client: `falkordb-go/v2`** | Official, BSD-3, graph-aware API (`SelectGraph`, parameterized `ROQuery`, typed records); one graph client from the code's point of view (`go-redis/v9` is transitive) | `rueidis` (generic Redis client → hand-rolled `GRAPH.QUERY` parsing) | falkordb-go is young (25 stars); API surface is small and replaceable behind `internal/graph` | DECIDED |
 
 ## Notes
 New decisions must be added here. Mark as DECIDED only after team consensus during/at hackathon start.
