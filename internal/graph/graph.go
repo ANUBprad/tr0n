@@ -130,7 +130,7 @@ func (c *Client) FindExperts(serviceKey string, limit int, now time.Time) (*know
 // (AGENT_SPEC TraceDecision). Source references a human can open.
 type DecisionTrace struct {
 	Decision    Decision        `json:"decision"`
-	AuthoredBy  []PersonRef     `json:"authored_by"`
+	AuthoredBy  []SourcedPerson `json:"authored_by"`
 	DiscussedIn []MeetingRef    `json:"discussed_in"`
 	SupportedBy []DocumentRef   `json:"supported_by"`
 	Supersedes  []SupersedesRef `json:"supersedes"`
@@ -148,6 +148,13 @@ type PersonRef struct {
 	Name string `json:"name"`
 }
 
+// SourcedPerson is a person reached via an edge whose provenance must
+// ship too (AGENT_SPEC: "Provenance returned: all edges").
+type SourcedPerson struct {
+	PersonRef
+	Provenance knowledge.Provenance `json:"provenance"`
+}
+
 type DocumentRef struct {
 	Key        string               `json:"key"`
 	Title      string               `json:"title"`
@@ -160,7 +167,7 @@ type MeetingRef struct {
 	Key          string               `json:"key"`
 	Title        string               `json:"title"`
 	HeldAt       string               `json:"held_at,omitempty"`
-	Participants []PersonRef          `json:"participants"`
+	Participants []SourcedPerson      `json:"participants"`
 	Provenance   knowledge.Provenance `json:"provenance"`
 }
 
@@ -200,7 +207,7 @@ func (c *Client) TraceDecision(ref string) (*DecisionTrace, error) {
 			Status:    field(rec, "status"),
 			DecidedAt: field(rec, "decided_at"),
 		},
-		AuthoredBy:  []PersonRef{},
+		AuthoredBy:  []SourcedPerson{},
 		DiscussedIn: []MeetingRef{},
 		SupportedBy: []DocumentRef{},
 		Supersedes:  []SupersedesRef{},
@@ -219,8 +226,10 @@ func (c *Client) TraceDecision(ref string) (*DecisionTrace, error) {
 	} else {
 		for res.Next() {
 			rec := res.Record()
-			trace.AuthoredBy = append(trace.AuthoredBy, PersonRef{
-				Key: field(rec, "person_key"), Name: field(rec, "person_name")})
+			trace.AuthoredBy = append(trace.AuthoredBy, SourcedPerson{
+				PersonRef:  PersonRef{Key: field(rec, "person_key"), Name: field(rec, "person_name")},
+				Provenance: recProvenance(rec),
+			})
 		}
 	}
 
@@ -233,7 +242,7 @@ func (c *Client) TraceDecision(ref string) (*DecisionTrace, error) {
 			rec := res.Record()
 			trace.DiscussedIn = append(trace.DiscussedIn, MeetingRef{
 				Key: field(rec, "key"), Title: field(rec, "title"), HeldAt: field(rec, "held_at"),
-				Participants: []PersonRef{}, Provenance: recProvenance(rec)})
+				Participants: []SourcedPerson{}, Provenance: recProvenance(rec)})
 		}
 	}
 	if res, err := run(`
@@ -249,8 +258,10 @@ func (c *Client) TraceDecision(ref string) (*DecisionTrace, error) {
 			rec := res.Record()
 			if i, ok := idx[field(rec, "meeting_key")]; ok {
 				m := &trace.DiscussedIn[i]
-				m.Participants = append(m.Participants, PersonRef{
-					Key: field(rec, "person_key"), Name: field(rec, "person_name")})
+				m.Participants = append(m.Participants, SourcedPerson{
+					PersonRef:  PersonRef{Key: field(rec, "person_key"), Name: field(rec, "person_name")},
+					Provenance: recProvenance(rec),
+				})
 			}
 		}
 	}
@@ -283,12 +294,12 @@ func (c *Client) TraceDecision(ref string) (*DecisionTrace, error) {
 		}
 	}
 
-	sortByKey(trace.AuthoredBy, func(p PersonRef) string { return p.Key })
+	sortByKey(trace.AuthoredBy, func(p SourcedPerson) string { return p.Key })
 	sortByKey(trace.DiscussedIn, func(m MeetingRef) string { return m.Key })
 	sortByKey(trace.SupportedBy, func(d DocumentRef) string { return d.Key })
 	sortByKey(trace.Supersedes, func(s SupersedesRef) string { return s.Key })
 	for i := range trace.DiscussedIn {
-		sortByKey(trace.DiscussedIn[i].Participants, func(p PersonRef) string { return p.Key })
+		sortByKey(trace.DiscussedIn[i].Participants, func(p SourcedPerson) string { return p.Key })
 	}
 	return trace, nil
 }

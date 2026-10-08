@@ -264,7 +264,8 @@ func TestTraceDecision(t *testing.T) {
 		d.DecidedAt != "2026-03-01T00:00:00Z" {
 		t.Errorf("decision: %+v", d)
 	}
-	if len(trace.AuthoredBy) != 1 || trace.AuthoredBy[0].Key != "person:ada" {
+	if len(trace.AuthoredBy) != 1 || trace.AuthoredBy[0].Key != "person:ada" ||
+		trace.AuthoredBy[0].Provenance.SrcType != "adr_repo" {
 		t.Errorf("authors: %+v", trace.AuthoredBy)
 	}
 	if len(trace.DiscussedIn) != 1 {
@@ -272,7 +273,8 @@ func TestTraceDecision(t *testing.T) {
 	}
 	m := trace.DiscussedIn[0]
 	if m.Key != "meeting:1" || m.HeldAt != "2026-02-20T15:00:00Z" || len(m.Participants) != 2 ||
-		m.Participants[0].Key != "person:ada" || m.Participants[1].Key != "person:bob" {
+		m.Participants[0].Key != "person:ada" || m.Participants[1].Key != "person:bob" ||
+		m.Participants[0].Provenance.SrcType != "adr_repo" {
 		t.Errorf("meeting: %+v", m)
 	}
 	if m.Provenance.SrcType != "adr_repo" {
