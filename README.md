@@ -69,12 +69,14 @@ Graph-central reasoning with provenance. Remove FalkorDB and the product's core 
 - [x] JSON API layer: read-only `internal/api` over all six ops (`tron serve`, real-DB HTTP contract test)
 - [x] Agent loop: deliberate-retrieval core with provider-agnostic `Decide` seam (`internal/agent`, scripted + real-graph tests)
 - [x] Q&A UI: server-rendered five built-in questions with evidence panels (`internal/ui`, claim-envelope validation)
+- [x] Demo verification: `tron demo` runs all five scenarios + evidence drill-down as pass/fail checks
 
 ## Quick Start
 
 ```bash
 docker compose up -d                          # FalkorDB on :6379
 go run ./cmd/tron seed                        # synthetic graph (destructive reseed)
+go run ./cmd/tron demo                        # verify the five demo scenarios (exit != 0 on failure)
 go run ./cmd/tron serve                       # UI at http://127.0.0.1:8080/ (JSON API at /v1)
 curl -s http://127.0.0.1:8080/v1/owner -d '{"target":"payments-api"}'
 ```

@@ -39,6 +39,15 @@ func main() {
 		nodes, edges := data.Totals()
 		fmt.Printf("seeded graph \"tron\": %d nodes, %d edges\n", nodes, edges)
 		fmt.Print(data.Summary())
+	case len(os.Args) == 2 && os.Args[1] == "demo":
+		c := connect(addr)
+		defer c.Close()
+		if err := c.Ping(); err != nil {
+			fatal(fmt.Errorf("falkordb unreachable at %s: %w — run `docker compose up -d`", addr, err))
+		}
+		if err := runDemo(os.Stdout, c); err != nil {
+			fatal(err)
+		}
 	case len(os.Args) == 2 && os.Args[1] == "serve":
 		c := connect(addr)
 		defer c.Close()
@@ -56,6 +65,7 @@ func main() {
 	default:
 		fmt.Fprintln(os.Stderr, "usage: tron owner <entity-name-or-key>")
 		fmt.Fprintln(os.Stderr, "       tron seed          recreate the synthetic graph (destructive)")
+		fmt.Fprintln(os.Stderr, "       tron demo          run the five demo scenarios as pass/fail checks")
 		fmt.Fprintln(os.Stderr, "       tron serve         serve the Q&A UI + JSON API (TRON_HTTP_ADDR)")
 		os.Exit(2)
 	}

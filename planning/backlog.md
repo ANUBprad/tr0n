@@ -34,7 +34,7 @@
 - [x] Minimal Q&A UI
 - [x] Evidence panel (paths)
 - [x] All 5 queries working
-- [ ] Demo script validation
+- [x] Demo script validation
 
 ### P4 — Polish/Submission (Hours 48–72)
 - [ ] Feature freeze + fixes
