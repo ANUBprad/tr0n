@@ -40,7 +40,7 @@
 - [ ] Feature freeze + fixes
 - [ ] Demo video
 - [ ] README for submission
-- [ ] Local setup verification
+- [x] Local setup verification
 - [ ] Final artifacts check
 
 All items above are POST-hackathon-start only.
