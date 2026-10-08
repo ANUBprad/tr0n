@@ -1,5 +1,12 @@
 # ARCHITECTURE.md
 
+> **SUPERSEDED (2026-10-08)** — this document is the hackathon-era
+> architecture sketch. Its stack table (FastAPI/Python) is **out of date**:
+> the locked architecture is Go + FalkorDB in
+> [`architecture-minimal.md`](architecture-minimal.md), with the stack
+> rationale in [`technology-evaluation.md`](technology-evaluation.md).
+> Kept for historical context only.
+
 **Status**: PRE-HACKATHON DESIGN — NOT IMPLEMENTATION  
 **All choices marked PROPOSED / UNDECIDED**
 

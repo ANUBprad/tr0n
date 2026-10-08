@@ -25,7 +25,7 @@
 - [ ] Evidence extraction/format
 
 ### P2 — Integration + API (Hours 24–36)
-- [ ] FastAPI endpoints
+- [ ] HTTP API endpoints (Go net/http)
 - [ ] Wire agent→tools→FalkorDB
 - [ ] End-to-end for 3+ queries
 - [ ] Error handling basics

@@ -14,7 +14,7 @@
 | Role | Responsibilities | Focus | Interface |
 |---|---|---|---|
 | **A — Graph + Data** | Schema, synthetic data generation, FalkorDB schema/indexing ideas, Cypher design examples | Dense connected graph for 5 queries | Provide test data + example traversals |
-| **B — Agent + Backend** | Tools, agent loop, tool selection, reasoning, API (FastAPI) | Deliberate retrieval, evidence/provenance | Tool contracts, API schema |
+| **B — Agent + Backend** | Tools, agent loop, tool selection, reasoning, API (Go) | Deliberate retrieval, evidence/provenance | Tool contracts, API schema |
 | **C — Frontend + Demo + Eval** | UI, evidence panel, demo script, query validation, video planning | Demo effectiveness, judge clarity | UI integration, demo dry-runs |
 
 ## Collaboration Principles

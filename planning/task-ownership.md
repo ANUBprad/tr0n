@@ -10,7 +10,7 @@
 | **Synthetic Data** | A (or shared) | A | Generator, connectivity validation |
 | **Graph Tools** | A | B | Tool implementations, contracts |
 | **Agent Loop** | A | B | Deliberate retrieval, reasoning |
-| **API (FastAPI)** | A | B | Endpoints, I/O |
+| **API (Go)** | A | B | Endpoints, I/O |
 | **Frontend/UI** | B | C | Q&A + evidence panel |
 | **Integration** | Shared | Shared | Agent↔API↔UI |
 | **Demo/Video** | B | C | Script, recording |

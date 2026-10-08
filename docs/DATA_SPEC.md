@@ -38,7 +38,7 @@ Must be sufficiently connected to support:
 
 ## Data Generation Strategy (Design)
 
-**PROPOSED**: Python script to generate synthetic graph with controlled relationships + realistic names.
+**PROPOSED**: A deterministic generator script to produce the synthetic graph (language open — Go in-repo or a short one-off script; decide at scaffold, see `OPEN_QUESTIONS.md`) with controlled relationships + realistic names.
 - Deterministic seed (reproducible)
 - Realistic but fictional names
 - Ensure multi-hop paths exist for all 5 demo queries

@@ -26,4 +26,7 @@ Full enterprise authZ, complex UI, broad integrations, heavy automation.
 - Graph-central (remove FalkorDB breaks reasoning)
 - Deterministic-first where possible
 - Minimal scope, serious architecture
+- **Knowledge invariant**: TRON never presents an inference or a recommendation
+  as a fact; every claim carries its layer tag and evidence chain
+  (rules in `knowledge-model.md`)
 

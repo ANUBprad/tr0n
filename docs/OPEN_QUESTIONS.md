@@ -1,32 +1,28 @@
 # OPEN_QUESTIONS.md
 
-**Status**: PRE-HACKATHON — UNDECIDED (Do not decide silently)
+**Status**: Living list. Items move to `planning/decision-log.md` when
+decided — never decide silently in a spec.
 
-## Technical Decisions (Unresolved)
+## Resolved by the 2026-10-08 architecture lock
+
+| Former question | Resolution |
+|---|---|
+| Implementation language | **Go** (`technology-evaluation.md`) |
+| Exact graph schema | **Initial 11 entities / 16 relationships** (`GRAPH_MODEL.md`) |
+| Expert scoring | **Deterministic `expertise/v1` weighted signals** (`knowledge-model.md`) |
+| Evidence presentation | **Layer-tagged claims + path lists per answer** (`AGENT_SPEC.md`) |
+| Tool interface (direct vs MCP) | **In-process Go functions behind one JSON API**; MCP only ever as an optional external adapter, if a consumer exists |
+| Action mechanism | **Deferred by design**: ACTION layer + `prepare_handoff` live above the graph boundary, built only when the core is proven (`AGENT_SPEC.md`) |
+
+## Still open
 
 | Question | Options | Notes |
 |---|---|---|
-| **LLM Provider** | OpenAI/Anthropic/Local (Ollama)/Gemini/Other | UNDECIDED. Consider cost, rate limits, local fallback. |
-| **Frontend** | Streamlit/Gradio/Vite+React/HTML+JS | UNDECIDED. Speed for demo vs flexibility. |
-| **Agent Framework** | Custom minimal + tool calling vs lightweight lib | UNDECIDED. Prefer simplest for 72h. |
-| **Tool Interface** | Direct function calls vs MCP | UNDECIDED. MCP adds overhead vs modularity. |
-| **FalkorDB Setup** | Docker/local binary/cloud | UNDECIDED. Local-first required; complete local setup acceptable. |
-| **Data Generation** | Python script (JSON→Cypher vs direct) | UNDECIDED. Deterministic seed preferred. |
-| **Deployment** | Local-only vs cloud (Railway/Render/etc.) | UNDECIDED. Live OR complete local setup required. |
-
-## Product Decisions (Unresolved)
-
-| Question | Options | Notes |
-|---|---|---|
-| **Exact graph schema** | Minimal vs slightly richer | UNDECIDED. Lock only what's needed for 5 queries. |
-| **Action mechanism** | None vs prepare_handoff only | UNDECIDED. Keep minimal. |
-| **Enter Track 01?** | Yes/No | UNDECIDED. Only if natural. Don't force. |
-| **Enter Track 02?** | Yes/No | UNDECIDED. Graph memory potential, not core. |
-| **Scoring signals for \
-best
-expert\** | Weighted vs simple count | UNDECIDED. Design example only; finalize post-Oct 15. |
-| **Evidence presentation** | Path list vs subgraph viz | UNDECIDED. Path list is sufficient. |
-
-## Process
-Do not preemptively answer. Keep as UNDECIDED/PROPOSED. Resolve at hackathon start (Hour 0–4).
-
+| **FalkorDB/Redis Go client** | official `falkordb-go` vs `rueidis` | Decide at scaffold by inspecting both repos (API surface, RESP3, maintenance). One dep either way. |
+| **LLM Provider** | OpenAI / Anthropic / Local (Ollama) / Gemini | UNDECIDED. Irrelevant to v1 core (no LLM needed); matters only for the future agent layer. Consider cost, rate limits, local fallback. |
+| **Agent framework** | Custom minimal loop vs library | UNDECIDED. When the agent layer lands, prefer minimal tool-calling loop; no framework unless proven necessary. |
+| **Frontend** | Server-rendered minimal page / Vite+React / CLI-first | UNDECIDED. API-first makes this late-stage and cheap to change. |
+| **FalkorDB setup** | Docker compose (default candidate) vs binary | UNDECIDED. Local-first required; decide at scaffold. |
+| **Data generation strategy** | Go generator in-repo vs external script | UNDECIDED. Deterministic seed + reproducibility required either way. |
+| **Deployment** | Local-only vs cloud | UNDECIDED. Complete local setup is the floor; cloud is optional. |
+| **Enter Track 01 / Track 02?** | Yes / No | UNDECIDED. Only if the natural build earns it. |
