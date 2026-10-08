@@ -4,6 +4,7 @@ package graph
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/FalkorDB/falkordb-go/v2"
@@ -57,16 +58,10 @@ func (c *Client) FindOwner(target string) ([]Owner, error) {
 	for res.Next() {
 		rec := res.Record()
 		owners = append(owners, Owner{
-			Key:  field(rec, "owner_key"),
-			Name: field(rec, "owner_name"),
-			Kind: field(rec, "owner_kind"),
-			Provenance: knowledge.Provenance{
-				SrcType:    field(rec, "src_type"),
-				SrcRef:     field(rec, "src_ref"),
-				ObservedAt: field(rec, "observed_at"),
-				Extraction: field(rec, "extraction"),
-				ValidFrom:  field(rec, "valid_from"),
-			},
+			Key:        field(rec, "owner_key"),
+			Name:       field(rec, "owner_name"),
+			Kind:       field(rec, "owner_kind"),
+			Provenance: recProvenance(rec),
 		})
 	}
 	return owners, nil
@@ -131,9 +126,192 @@ func (c *Client) FindExperts(serviceKey string, limit int, now time.Time) (*know
 	return knowledge.RankExpertise(events, limit, now), nil
 }
 
+// DecisionTrace is the bounded provenance neighborhood of one decision
+// (AGENT_SPEC TraceDecision). Source references a human can open.
+type DecisionTrace struct {
+	Decision    Decision        `json:"decision"`
+	AuthoredBy  []PersonRef     `json:"authored_by"`
+	DiscussedIn []MeetingRef    `json:"discussed_in"`
+	SupportedBy []DocumentRef   `json:"supported_by"`
+	Supersedes  []SupersedesRef `json:"supersedes"`
+}
+
+type Decision struct {
+	Key       string `json:"key"`
+	Title     string `json:"title"`
+	Status    string `json:"status"`
+	DecidedAt string `json:"decided_at,omitempty"`
+}
+
+type PersonRef struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+type DocumentRef struct {
+	Key        string               `json:"key"`
+	Title      string               `json:"title"`
+	Kind       string               `json:"kind"`
+	URL        string               `json:"url,omitempty"`
+	Provenance knowledge.Provenance `json:"provenance"`
+}
+
+type MeetingRef struct {
+	Key          string               `json:"key"`
+	Title        string               `json:"title"`
+	HeldAt       string               `json:"held_at,omitempty"`
+	Participants []PersonRef          `json:"participants"`
+	Provenance   knowledge.Provenance `json:"provenance"`
+}
+
+type SupersedesRef struct {
+	Key      string                 `json:"key"`
+	Title    string                 `json:"title"`
+	Evidence []knowledge.Provenance `json:"evidence"`
+}
+
+// TraceDecision answers "why was this decision made?" — decision node,
+// authors, meetings (+participants), supporting documents, and the
+// SUPERSEDES chain (≤2 hops). Bounded expansion, no scoring. Lookup by
+// key or title; nil when nothing matches.
+// ponytail: title ambiguity resolves by key order (first match);
+// upgrade path: identity resolution aliases once multiple sources
+// exist.
+func (c *Client) TraceDecision(ref string) (*DecisionTrace, error) {
+	const resolve = `
+	MATCH (d:Decision)
+	WHERE d.key = $q OR d.title = $q
+	RETURN d.key AS key, d.title AS title, d.status AS status,
+	       coalesce(d.decided_at, '') AS decided_at
+	ORDER BY d.key LIMIT 1`
+	res, err := c.g.ROQuery(resolve, map[string]interface{}{"q": ref}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("resolve decision %q: %w", ref, err)
+	}
+	if !res.Next() {
+		return nil, nil
+	}
+	rec := res.Record()
+	key := field(rec, "key")
+	trace := &DecisionTrace{
+		Decision: Decision{
+			Key:       key,
+			Title:     field(rec, "title"),
+			Status:    field(rec, "status"),
+			DecidedAt: field(rec, "decided_at"),
+		},
+		AuthoredBy:  []PersonRef{},
+		DiscussedIn: []MeetingRef{},
+		SupportedBy: []DocumentRef{},
+		Supersedes:  []SupersedesRef{},
+	}
+
+	provCols := `, r.src_type AS src_type, r.src_ref AS src_ref, r.observed_at AS observed_at,
+	             r.extraction AS extraction, r.valid_from AS valid_from`
+
+	run := func(q string) (*falkordb.QueryResult, error) {
+		return c.g.ROQuery(q, map[string]interface{}{"key": key}, nil)
+	}
+	if res, err := run(`
+	MATCH (a)-[r:AUTHORED]->(d:Decision {key: $key})
+	RETURN a.key AS person_key, a.name AS person_name` + provCols); err != nil {
+		return nil, fmt.Errorf("decision authors: %w", err)
+	} else {
+		for res.Next() {
+			rec := res.Record()
+			trace.AuthoredBy = append(trace.AuthoredBy, PersonRef{
+				Key: field(rec, "person_key"), Name: field(rec, "person_name")})
+		}
+	}
+
+	if res, err := run(`
+	MATCH (d:Decision {key: $key})-[r:DISCUSSED_IN]->(m:Meeting)
+	RETURN m.key AS key, m.title AS title, coalesce(m.held_at, '') AS held_at` + provCols); err != nil {
+		return nil, fmt.Errorf("decision meetings: %w", err)
+	} else {
+		for res.Next() {
+			rec := res.Record()
+			trace.DiscussedIn = append(trace.DiscussedIn, MeetingRef{
+				Key: field(rec, "key"), Title: field(rec, "title"), HeldAt: field(rec, "held_at"),
+				Participants: []PersonRef{}, Provenance: recProvenance(rec)})
+		}
+	}
+	if res, err := run(`
+	MATCH (d:Decision {key: $key})-[:DISCUSSED_IN]->(m:Meeting)<-[r:PARTICIPATED_IN]-(p:Person)
+	RETURN m.key AS meeting_key, p.key AS person_key, p.name AS person_name` + provCols); err != nil {
+		return nil, fmt.Errorf("decision participants: %w", err)
+	} else {
+		idx := map[string]int{}
+		for i, m := range trace.DiscussedIn {
+			idx[m.Key] = i
+		}
+		for res.Next() {
+			rec := res.Record()
+			if i, ok := idx[field(rec, "meeting_key")]; ok {
+				m := &trace.DiscussedIn[i]
+				m.Participants = append(m.Participants, PersonRef{
+					Key: field(rec, "person_key"), Name: field(rec, "person_name")})
+			}
+		}
+	}
+
+	if res, err := run(`
+	MATCH (d:Decision {key: $key})-[r:SUPPORTED_BY]->(doc:Document)
+	RETURN doc.key AS key, doc.title AS title, doc.kind AS kind, coalesce(doc.url, '') AS url` + provCols); err != nil {
+		return nil, fmt.Errorf("decision evidence: %w", err)
+	} else {
+		for res.Next() {
+			rec := res.Record()
+			trace.SupportedBy = append(trace.SupportedBy, DocumentRef{
+				Key: field(rec, "key"), Title: field(rec, "title"), Kind: field(rec, "kind"),
+				URL: field(rec, "url"), Provenance: recProvenance(rec)})
+		}
+	}
+
+	if res, err := run(`
+	MATCH path = (d:Decision {key: $key})-[:SUPERSEDES*1..2]->(x)
+	RETURN x.key AS key, x.title AS title, relationships(path) AS edges`); err != nil {
+		return nil, fmt.Errorf("decision supersedes: %w", err)
+	} else {
+		for res.Next() {
+			rec := res.Record()
+			s := SupersedesRef{Key: field(rec, "key"), Title: field(rec, "title")}
+			for _, e := range edgeList(rec) {
+				s.Evidence = append(s.Evidence, edgeProvenance(e))
+			}
+			trace.Supersedes = append(trace.Supersedes, s)
+		}
+	}
+
+	sortByKey(trace.AuthoredBy, func(p PersonRef) string { return p.Key })
+	sortByKey(trace.DiscussedIn, func(m MeetingRef) string { return m.Key })
+	sortByKey(trace.SupportedBy, func(d DocumentRef) string { return d.Key })
+	sortByKey(trace.Supersedes, func(s SupersedesRef) string { return s.Key })
+	for i := range trace.DiscussedIn {
+		sortByKey(trace.DiscussedIn[i].Participants, func(p PersonRef) string { return p.Key })
+	}
+	return trace, nil
+}
+
+// recProvenance assembles the provenance columns a query returned.
+func recProvenance(rec *falkordb.Record) knowledge.Provenance {
+	return knowledge.Provenance{
+		SrcType:    field(rec, "src_type"),
+		SrcRef:     field(rec, "src_ref"),
+		ObservedAt: field(rec, "observed_at"),
+		Extraction: field(rec, "extraction"),
+		ValidFrom:  field(rec, "valid_from"),
+	}
+}
+
+func sortByKey[T any](s []T, key func(T) string) {
+	sort.Slice(s, func(i, j int) bool { return key(s[i]) < key(s[j]) })
+}
+
 // basisPath renders one concrete fact path from a branch's positional
 // nodes; the count guard returns "" so a shape change fails tests
 // loudly instead of fabricating evidence.
+
 func basisPath(class string, nodes []*falkordb.Node) string {
 	need := map[string]int{
 		knowledge.OwnerClass: 2,

@@ -60,7 +60,8 @@ Graph-central reasoning with provenance. Remove FalkorDB and the product's core 
 - [x] Architecture lock (stack, knowledge model, graph schema)
 - [x] Go scaffold: FalkorDB client + FindOwner (real-DB test)
 - [x] FindExperts with deterministic expertise/v1 scoring (real-DB test)
-- [ ] Remaining graph operations (TraceDecision, FindRelatedIncidents, TraceEvidence)
+- [x] TraceDecision: decision provenance neighborhood (real-DB test)
+- [ ] Remaining graph operations (FindRelatedIncidents, TraceEvidence)
 - [ ] Seed data generator
 - [ ] JSON API layer
 

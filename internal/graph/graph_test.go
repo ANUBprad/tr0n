@@ -222,6 +222,103 @@ func TestFindExperts(t *testing.T) {
 	})
 }
 
+// Bounded neighborhood of a decision: authors, meetings + participants,
+// supporting docs, ≤2-hop supersedes chain — all with edge provenance.
+func TestTraceDecision(t *testing.T) {
+	c := newTestClient(t)
+
+	prov := `{src_type: 'adr_repo', src_ref: 'adrs/', observed_at: '2026-10-01T00:00:00Z', extraction: 'deterministic'}`
+	seed := `
+	CREATE (ada:Person {key: 'person:ada', name: 'Ada'}),
+	       (bob:Person {key: 'person:bob', name: 'Bob'}),
+	       (dec:Decision {key: 'decision:42', title: 'Use FalkorDB', status: 'accepted',
+	                      decided_at: '2026-03-01T00:00:00Z'}),
+	       (prev:Decision {key: 'decision:7', title: 'Use Postgres', status: 'superseded',
+	                       decided_at: '2025-06-01T00:00:00Z'}),
+	       (old:Decision {key: 'decision:3', title: 'Prototype in SQLite', status: 'superseded',
+	                      decided_at: '2024-01-01T00:00:00Z'}),
+	       (ada)-[:AUTHORED ` + prov + `]->(dec),
+	       (mtg:Meeting {key: 'meeting:1', title: 'Graph kickoff',
+	                    held_at: '2026-02-20T15:00:00Z'}),
+	       (dec)-[:DISCUSSED_IN ` + prov + `]->(mtg),
+	       (ada)-[:PARTICIPATED_IN ` + prov + `]->(mtg),
+	       (bob)-[:PARTICIPATED_IN ` + prov + `]->(mtg),
+	       (doc:Document {key: 'doc:falkor-eval', title: 'FalkorDB evaluation',
+	                     kind: 'adr', url: 'https://example/adr/1'}),
+	       (dec)-[:SUPPORTED_BY ` + prov + `]->(doc),
+	       (dec)-[:SUPERSEDES ` + prov + `]->(prev),
+	       (prev)-[:SUPERSEDES ` + prov + `]->(old)`
+	if _, err := c.g.Query(seed, nil, nil); err != nil {
+		t.Fatalf("seed fixture: %v", err)
+	}
+
+	trace, err := c.TraceDecision("decision:42")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trace == nil {
+		t.Fatal("want trace, got nil")
+	}
+	d := trace.Decision
+	if d.Key != "decision:42" || d.Title != "Use FalkorDB" || d.Status != "accepted" ||
+		d.DecidedAt != "2026-03-01T00:00:00Z" {
+		t.Errorf("decision: %+v", d)
+	}
+	if len(trace.AuthoredBy) != 1 || trace.AuthoredBy[0].Key != "person:ada" {
+		t.Errorf("authors: %+v", trace.AuthoredBy)
+	}
+	if len(trace.DiscussedIn) != 1 {
+		t.Fatalf("meetings: %+v", trace.DiscussedIn)
+	}
+	m := trace.DiscussedIn[0]
+	if m.Key != "meeting:1" || m.HeldAt != "2026-02-20T15:00:00Z" || len(m.Participants) != 2 ||
+		m.Participants[0].Key != "person:ada" || m.Participants[1].Key != "person:bob" {
+		t.Errorf("meeting: %+v", m)
+	}
+	if m.Provenance.SrcType != "adr_repo" {
+		t.Errorf("meeting provenance: %+v", m.Provenance)
+	}
+	if len(trace.SupportedBy) != 1 {
+		t.Fatalf("docs: %+v", trace.SupportedBy)
+	}
+	doc := trace.SupportedBy[0]
+	if doc.Key != "doc:falkor-eval" || doc.Kind != "adr" || doc.URL != "https://example/adr/1" ||
+		doc.Provenance.SrcType != "adr_repo" {
+		t.Errorf("doc: %+v", doc)
+	}
+	if len(trace.Supersedes) != 2 {
+		t.Fatalf("supersedes: %+v", trace.Supersedes)
+	}
+	// sorted by key; hop depth visible in evidence length
+	if s := trace.Supersedes[0]; s.Key != "decision:3" || len(s.Evidence) != 2 {
+		t.Errorf("2-hop supersede: %+v", s)
+	}
+	if s := trace.Supersedes[1]; s.Key != "decision:7" || len(s.Evidence) != 1 ||
+		s.Evidence[0].SrcType != "adr_repo" {
+		t.Errorf("1-hop supersede: %+v", s)
+	}
+
+	t.Run("lookup by title", func(t *testing.T) {
+		byTitle, err := c.TraceDecision("Use FalkorDB")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if byTitle == nil || byTitle.Decision.Key != "decision:42" {
+			t.Errorf("by title: %+v", byTitle)
+		}
+	})
+
+	t.Run("unknown decision is nil, not an error", func(t *testing.T) {
+		none, err := c.TraceDecision("decision:ghost")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if none != nil {
+			t.Errorf("want nil, got %+v", none)
+		}
+	})
+}
+
 func basisByClass(t *testing.T, e knowledge.Expert, class string) knowledge.Basis {
 	t.Helper()
 	for _, b := range e.Basis {
