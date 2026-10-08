@@ -433,6 +433,78 @@ type NodeRef struct {
 	Name  string `json:"name,omitempty"`
 }
 
+// Resolution is the answer to ResolveEntity: one key when the match is
+// unambiguous, otherwise a candidate list — never a guess.
+type Resolution struct {
+	Key        string      `json:"key,omitempty"`
+	MatchedOn  string      `json:"matched_on,omitempty"`
+	Candidates []Candidate `json:"candidates"`
+}
+
+type Candidate struct {
+	Label string `json:"label"`
+	Key   string `json:"key"`
+	Name  string `json:"name"`
+}
+
+// ResolveEntity is the internal deterministic resolver: exact key →
+// exact name → case-insensitive exact name → case-insensitive name
+// prefix. First tier with a hit wins; a hit within a tier is either a
+// single key or the full candidate list. label narrows the search to
+// one node label ("" = any). No fuzzy matching, ever.
+// ponytail: one scan of label/key/name per call, fine for the v1
+// synthetic graph; upgrade path = per-tier indexed lookups.
+func (c *Client) ResolveEntity(name, label string) (Resolution, error) {
+	empty := Resolution{Candidates: []Candidate{}}
+	if name == "" {
+		return empty, nil
+	}
+	res, err := c.g.ROQuery(`
+	MATCH (n) WHERE n.key IS NOT NULL AND ($label = '' OR $label IN labels(n))
+	RETURN labels(n)[0] AS label, n.key AS key, coalesce(n.name, n.title) AS name`,
+		map[string]interface{}{"label": label}, nil)
+	if err != nil {
+		return empty, fmt.Errorf("resolve %q: %w", name, err)
+	}
+	var all []Candidate
+	for res.Next() {
+		rec := res.Record()
+		all = append(all, Candidate{
+			Label: field(rec, "label"), Key: field(rec, "key"), Name: field(rec, "name"),
+		})
+	}
+
+	lower := strings.ToLower(name)
+	tiers := []struct {
+		on   string
+		test func(Candidate) bool
+	}{
+		{"key", func(c Candidate) bool { return c.Key == name }},
+		{"name", func(c Candidate) bool { return c.Name == name }},
+		{"name_ci", func(c Candidate) bool { return strings.EqualFold(c.Name, name) }},
+		{"name_prefix", func(c Candidate) bool {
+			return strings.HasPrefix(strings.ToLower(c.Name), lower)
+		}},
+	}
+	for _, tier := range tiers {
+		var hits []Candidate
+		for _, cand := range all {
+			if tier.test(cand) {
+				hits = append(hits, cand)
+			}
+		}
+		if len(hits) == 0 {
+			continue
+		}
+		sortByKey(hits, func(c Candidate) string { return c.Key })
+		if len(hits) == 1 {
+			return Resolution{Key: hits[0].Key, MatchedOn: tier.on, Candidates: []Candidate{}}, nil
+		}
+		return Resolution{MatchedOn: tier.on, Candidates: hits}, nil
+	}
+	return empty, nil
+}
+
 // TraceEvidence re-fetches previously returned keys with full node
 // properties and every adjacent edge (both directions) with complete
 // provenance. Order follows the input; unknown keys come back with

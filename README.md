@@ -63,7 +63,8 @@ Graph-central reasoning with provenance. Remove FalkorDB and the product's core 
 - [x] TraceDecision: decision provenance neighborhood (real-DB test)
 - [x] FindRelatedIncidents: temporal + literal keyword filtering (real-DB test)
 - [x] TraceEvidence: full refetch + 1-hop provenance drill-down (real-DB test)
-- [ ] ResolveEntity: deterministic internal resolver (exact key → exact name → case-insensitive → prefix)
+- [x] ResolveEntity: deterministic internal resolver (exact key → exact name → case-insensitive → prefix)
+- [x] All five graph operations implemented with real-DB tests
 - [ ] Seed data generator
 - [ ] JSON API layer
 

@@ -469,6 +469,63 @@ func TestTraceEvidence(t *testing.T) {
 	}
 }
 
+// Deterministic resolver: exact key → exact name → case-insensitive →
+// prefix; ambiguity returns candidates, never a guess.
+func TestResolveEntity(t *testing.T) {
+	c := newTestClient(t)
+
+	seed := `
+	CREATE (ada:Person {key: 'person:ada', name: 'Ada'}),
+	       (ada2:Person {key: 'person:ada-2', name: 'Ada'}),
+	       (adaL:Person {key: 'person:ada-lovelace', name: 'Ada Lovelace'}),
+	       (svc:Service {key: 'service:payments', name: 'payments-api'}),
+	       (dec:Decision {key: 'decision:adopt', title: 'Adopt FalkorDB'})`
+	if _, err := c.g.Query(seed, nil, nil); err != nil {
+		t.Fatalf("seed fixture: %v", err)
+	}
+
+	tests := []struct {
+		desc, query, label string
+		wantKey, wantOn    string
+		wantCandidates     int
+	}{
+		{"exact key beats everything", "person:ada", "", "person:ada", "key", 0},
+		{"ambiguous exact name returns candidates", "Ada", "", "", "name", 2},
+		{"case-insensitive exact", "ADA", "", "", "name_ci", 2},
+		{"ci prefix single hit", "payments", "Service", "service:payments", "name_prefix", 0},
+		{"title counts as name", "Adopt FalkorDB", "", "decision:adopt", "name", 0},
+		{"label filter excludes other labels", "Ada", "Service", "", "", 0},
+		{"no match stays empty", "zzz", "", "", "", 0},
+		{"ci exact outranks prefix", "ada", "", "", "name_ci", 2},
+		{"prefix widens to candidates", "ad", "", "", "name_prefix", 4},
+	}
+	for _, tc := range tests {
+		got, err := c.ResolveEntity(tc.query, tc.label)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.desc, err)
+		}
+		if got.Key != tc.wantKey || got.MatchedOn != tc.wantOn ||
+			len(got.Candidates) != tc.wantCandidates {
+			t.Errorf("%s: got %+v, want key=%q on=%q candidates=%d",
+				tc.desc, got, tc.wantKey, tc.wantOn, tc.wantCandidates)
+		}
+	}
+
+	// case-insensitive tier: "ADA" is not an exact name, so ci tier runs
+	// and finds both Adas.
+	got, err := c.ResolveEntity("aDa", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.MatchedOn != "name_ci" || len(got.Candidates) != 2 {
+		t.Errorf("ci tier: %+v", got)
+	}
+
+	if e, err := c.ResolveEntity("", ""); err != nil || e.Key != "" || len(e.Candidates) != 0 {
+		t.Errorf("empty input: %+v, %v", e, err)
+	}
+}
+
 func basisByClass(t *testing.T, e knowledge.Expert, class string) knowledge.Basis {
 	t.Helper()
 	for _, b := range e.Basis {
