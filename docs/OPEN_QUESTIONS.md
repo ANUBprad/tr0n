@@ -22,7 +22,7 @@ decided — never decide silently in a spec.
 | **LLM Provider** | OpenAI / Anthropic / Local (Ollama) / Gemini | UNDECIDED. Irrelevant to v1 core (no LLM needed); matters only for the future agent layer. Consider cost, rate limits, local fallback. |
 | **Agent framework** | Custom minimal loop vs library | UNDECIDED. When the agent layer lands, prefer minimal tool-calling loop; no framework unless proven necessary. |
 | **Frontend** | Server-rendered minimal page / Vite+React / CLI-first | UNDECIDED. API-first makes this late-stage and cheap to change. |
-| **FalkorDB setup** | Docker compose (default candidate) vs binary | UNDECIDED. Local-first required; decide at scaffold. |
-| **Data generation strategy** | Go generator in-repo vs external script | UNDECIDED. Deterministic seed + reproducibility required either way. |
+| **FalkorDB setup** | Docker compose (default candidate) vs binary | **RESOLVED (2026-10-08): Docker compose** — `compose.yaml` in repo, local-first, no volume (seed recreates data). |
+| **Data generation strategy** | Go generator in-repo vs external script | **RESOLVED (2026-10-08): Go generator in-repo** — `internal/seed` + `tron seed`, deterministic `Generate()` + direct bulk load; see decision-log. |
 | **Deployment** | Local-only vs cloud | UNDECIDED. Complete local setup is the floor; cloud is optional. |
 | **Enter Track 01 / Track 02?** | Yes / No | UNDECIDED. Only if the natural build earns it. |

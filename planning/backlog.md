@@ -11,11 +11,11 @@
 ## POST-OCT 15 (Hackathon Implementation Backlog)
 
 ### P0 — Graph Foundation (Hours 0–12)
-- [ ] Decide final minimal schema
-- [ ] Implement synthetic data generator
-- [ ] Load data into FalkorDB
-- [ ] Verify connectivity for 5 queries
-- [ ] Smoke test traversals
+- [x] Decide final minimal schema
+- [x] Implement synthetic data generator
+- [x] Load data into FalkorDB
+- [x] Verify connectivity for 5 queries
+- [x] Smoke test traversals
 
 ### P1 — Agent + Tools (Hours 12–24)
 - [ ] Implement search_graph, find_owner
