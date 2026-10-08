@@ -5,6 +5,7 @@ package graph
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/FalkorDB/falkordb-go/v2"
@@ -304,14 +305,123 @@ func (c *Client) TraceDecision(ref string) (*DecisionTrace, error) {
 	return trace, nil
 }
 
+// IncidentRef is one incident affecting a service, with resolvers and
+// the AFFECTS edge's provenance (AGENT_SPEC FindRelatedIncidents).
+type IncidentRef struct {
+	Key        string               `json:"key"`
+	Title      string               `json:"title"`
+	Severity   string               `json:"severity,omitempty"`
+	StartedAt  string               `json:"started_at"`
+	ResolvedAt string               `json:"resolved_at,omitempty"`
+	ResolvedBy []SourcedPerson      `json:"resolved_by"`
+	Provenance knowledge.Provenance `json:"provenance"`
+}
+
+// FindRelatedIncidents answers "what happened here before?" —
+// incidents affecting the service, newest first. since is an optional
+// RFC3339 lower bound on started_at; keyword is an optional literal
+// case-insensitive substring of the title. Both filters are
+// deterministic: no fuzzy matching, ever.
+func (c *Client) FindRelatedIncidents(serviceKey, since, keyword string) ([]IncidentRef, error) {
+	var sinceT time.Time
+	if since != "" {
+		t, err := time.Parse(time.RFC3339, since)
+		if err != nil {
+			return nil, fmt.Errorf("since must be RFC3339 (got %q): %w", since, err)
+		}
+		sinceT = t
+	}
+	const q = `
+	MATCH (i:Incident)-[af:AFFECTS]->(s:Service {key: $key})
+	OPTIONAL MATCH (i)-[rb:RESOLVED_BY]->(p:Person)
+	RETURN i.key AS key, i.title AS title, coalesce(i.severity, '') AS severity,
+	       i.started_at AS started_at, coalesce(i.resolved_at, '') AS resolved_at,
+	       af.src_type AS affects_src_type, af.src_ref AS affects_src_ref,
+	       af.observed_at AS affects_observed_at, af.extraction AS affects_extraction,
+	       af.valid_from AS affects_valid_from,
+	       coalesce(p.key, '') AS resolver_key, coalesce(p.name, '') AS resolver_name,
+	       rb.src_type AS resolver_src_type, rb.src_ref AS resolver_src_ref,
+	       rb.observed_at AS resolver_observed_at, rb.extraction AS resolver_extraction,
+	       rb.valid_from AS resolver_valid_from`
+	res, err := c.g.ROQuery(q, map[string]interface{}{"key": serviceKey}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("related incidents %q: %w", serviceKey, err)
+	}
+
+	type item struct {
+		inc     IncidentRef
+		started time.Time
+	}
+	var items []item
+	idx := map[string]int{}
+	for res.Next() {
+		rec := res.Record()
+		k := field(rec, "key")
+		i, ok := idx[k]
+		if !ok {
+			inc := IncidentRef{
+				Key:        k,
+				Title:      field(rec, "title"),
+				Severity:   field(rec, "severity"),
+				StartedAt:  field(rec, "started_at"),
+				ResolvedAt: field(rec, "resolved_at"),
+				ResolvedBy: []SourcedPerson{},
+				Provenance: provFrom(rec, "affects_"),
+			}
+			// required at ingest; zero on corrupt rows (see filter below)
+			started, _ := time.Parse(time.RFC3339, inc.StartedAt)
+			items = append(items, item{inc: inc, started: started})
+			idx[k] = len(items) - 1
+			i = len(items) - 1
+		}
+		if rk := field(rec, "resolver_key"); rk != "" {
+			items[i].inc.ResolvedBy = append(items[i].inc.ResolvedBy, SourcedPerson{
+				PersonRef:  PersonRef{Key: rk, Name: field(rec, "resolver_name")},
+				Provenance: provFrom(rec, "resolver_"),
+			})
+		}
+	}
+
+	kept := make([]item, 0, len(items))
+	for _, it := range items {
+		// an undated row cannot satisfy a since filter — excluded only then
+		if !sinceT.IsZero() && (it.started.IsZero() || it.started.Before(sinceT)) {
+			continue
+		}
+		if keyword != "" && !strings.Contains(strings.ToLower(it.inc.Title), strings.ToLower(keyword)) {
+			continue
+		}
+		kept = append(kept, it)
+	}
+	sort.Slice(kept, func(a, b int) bool {
+		if !kept[a].started.Equal(kept[b].started) {
+			return kept[a].started.After(kept[b].started)
+		}
+		return kept[a].inc.Key < kept[b].inc.Key
+	})
+
+	out := make([]IncidentRef, 0, len(kept))
+	for _, it := range kept {
+		sortByKey(it.inc.ResolvedBy, func(p SourcedPerson) string { return p.Key })
+		out = append(out, it.inc)
+	}
+	return out, nil
+}
+
 // recProvenance assembles the provenance columns a query returned.
 func recProvenance(rec *falkordb.Record) knowledge.Provenance {
+	return provFrom(rec, "")
+}
+
+// provFrom reads provenance columns under an alias prefix
+// ("" for `src_type`, "affects_" for `affects_src_type`).
+func provFrom(rec *falkordb.Record, prefix string) knowledge.Provenance {
 	return knowledge.Provenance{
-		SrcType:    field(rec, "src_type"),
-		SrcRef:     field(rec, "src_ref"),
-		ObservedAt: field(rec, "observed_at"),
-		Extraction: field(rec, "extraction"),
-		ValidFrom:  field(rec, "valid_from"),
+		SrcType:    field(rec, prefix+"src_type"),
+		SrcRef:     field(rec, prefix+"src_ref"),
+		ObservedAt: field(rec, prefix+"observed_at"),
+		Extraction: field(rec, prefix+"extraction"),
+		ValidFrom:  field(rec, prefix+"valid_from"),
 	}
 }
 

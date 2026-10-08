@@ -321,6 +321,90 @@ func TestTraceDecision(t *testing.T) {
 	})
 }
 
+// Temporal + literal-keyword filtering over incidents affecting a
+// service, newest first, with resolvers and AFFECTS provenance.
+func TestFindRelatedIncidents(t *testing.T) {
+	c := newTestClient(t)
+
+	prov := `{src_type: 'incident_tracker', src_ref: 'pager', observed_at: '2026-10-01T00:00:00Z', extraction: 'deterministic'}`
+	seed := `
+	CREATE (svc:Service {key: 'service:payments', name: 'payments-api'}),
+	       (other:Service {key: 'service:db', name: 'db'}),
+	       (ada:Person {key: 'person:ada', name: 'Ada'}),
+	       (bob:Person {key: 'person:bob', name: 'Bob'}),
+	       (inc1:Incident {key: 'incident:1', title: 'Payment gateway timeout', severity: 'sev1',
+	                       started_at: '2026-09-10T02:00:00Z', resolved_at: '2026-09-10T04:00:00Z'}),
+	       (inc1)-[:AFFECTS ` + prov + `]->(svc),
+	       (inc1)-[:RESOLVED_BY ` + prov + `]->(bob),
+	       (inc1)-[:RESOLVED_BY ` + prov + `]->(ada),
+	       (inc2:Incident {key: 'incident:2', title: 'Checkout latency spike', severity: 'sev2',
+	                       started_at: '2026-05-01T00:00:00Z'}),
+	       (inc2)-[:AFFECTS ` + prov + `]->(svc),
+	       (inc3:Incident {key: 'incident:3', title: 'Primary DB failover', severity: 'sev1',
+	                       started_at: '2026-09-20T00:00:00Z', resolved_at: '2026-09-20T01:00:00Z'}),
+	       (inc3)-[:AFFECTS ` + prov + `]->(other)`
+	if _, err := c.g.Query(seed, nil, nil); err != nil {
+		t.Fatalf("seed fixture: %v", err)
+	}
+
+	all, err := c.FindRelatedIncidents("service:payments", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("want 2 incidents (not other-service inc3), got %d: %+v", len(all), all)
+	}
+	if all[0].Key != "incident:1" || all[1].Key != "incident:2" {
+		t.Errorf("want newest first, got %v, %v", all[0].Key, all[1].Key)
+	}
+	i1 := all[0]
+	if i1.Severity != "sev1" || i1.ResolvedAt != "2026-09-10T04:00:00Z" ||
+		i1.Provenance.SrcType != "incident_tracker" {
+		t.Errorf("incident: %+v", i1)
+	}
+	if len(i1.ResolvedBy) != 2 || i1.ResolvedBy[0].Key != "person:ada" ||
+		i1.ResolvedBy[1].Key != "person:bob" ||
+		i1.ResolvedBy[0].Provenance.SrcType != "incident_tracker" {
+		t.Errorf("resolvers: %+v", i1.ResolvedBy)
+	}
+	if all[1].ResolvedAt != "" || len(all[1].ResolvedBy) != 0 {
+		t.Errorf("inc2 unresolved: %+v", all[1])
+	}
+
+	t.Run("since filter", func(t *testing.T) {
+		got, err := c.FindRelatedIncidents("service:payments", "2026-06-01T00:00:00Z", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || got[0].Key != "incident:1" {
+			t.Errorf("since: %+v", got)
+		}
+	})
+
+	t.Run("keyword is case-insensitive literal", func(t *testing.T) {
+		got, err := c.FindRelatedIncidents("service:payments", "", "TiMeOuT")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || got[0].Key != "incident:1" {
+			t.Errorf("keyword: %+v", got)
+		}
+		none, err := c.FindRelatedIncidents("service:payments", "", "no-such-word")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(none) != 0 {
+			t.Errorf("want empty, got %+v", none)
+		}
+	})
+
+	t.Run("invalid since is an error, not a silent pass", func(t *testing.T) {
+		if _, err := c.FindRelatedIncidents("service:payments", "yesterday", ""); err == nil {
+			t.Error("want error for non-RFC3339 since")
+		}
+	})
+}
+
 func basisByClass(t *testing.T, e knowledge.Expert, class string) knowledge.Basis {
 	t.Helper()
 	for _, b := range e.Basis {

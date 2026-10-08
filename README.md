@@ -61,7 +61,8 @@ Graph-central reasoning with provenance. Remove FalkorDB and the product's core 
 - [x] Go scaffold: FalkorDB client + FindOwner (real-DB test)
 - [x] FindExperts with deterministic expertise/v1 scoring (real-DB test)
 - [x] TraceDecision: decision provenance neighborhood (real-DB test)
-- [ ] Remaining graph operations (FindRelatedIncidents, TraceEvidence)
+- [x] FindRelatedIncidents: temporal + literal keyword filtering (real-DB test)
+- [ ] Remaining graph operations (TraceEvidence)
 - [ ] Seed data generator
 - [ ] JSON API layer
 
