@@ -2,7 +2,7 @@
 
 **Status**: PRE-HACKATHON CONCEPTUAL DIAGRAM — NOT IMPLEMENTATION
 
-\\\mermaid
+```mermaid
 flowchart TD
     Q[User Query - Natural Language] --> Parse[Parse Intent]
     Parse --> Plan[Plan: Select Minimal Tools]
@@ -24,7 +24,7 @@ flowchart TD
     class Eval,Verify decision
     class Parse,Plan,Tool1,Synthesize,Respond action
     class FB db
-\\\
+```
 
 **Notes**: Deliberate retrieval loop. Evidence-gated (must be sufficient + all claims backed by paths). No full graph dump.
 

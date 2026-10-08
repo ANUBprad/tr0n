@@ -6,38 +6,12 @@
 TRON (Trusted Reasoning & Organizational Nexus) is a Company Brain that understands organizational context by connecting people, teams, projects, services, systems, documents, tickets, incidents, decisions, meetings, engineering activity, expertise, and ownership into a unified graph.
 
 ## Problem Statement
-Organizations accumulate knowledge across many siloed tools (tickets, docs, chats, PRs, incidents). When someone asks \
-Who
-knows
-this
-system
-best?
-Why
-was
-this
-decision
-made?
-Who
-owns
-this?
-Has
-this
-happened
-before?\, answers require connecting distributed context across people, systems, and history.
+Organizations accumulate knowledge across many siloed tools (tickets, docs, chats, PRs, incidents). When someone asks "Who knows this system best? Why was this decision made? Who owns this? Has this happened before?", answers require connecting distributed context across people, systems, and history.
 
 ## Why Existing RAG is Insufficient
 - Flat chunk retrieval loses relationship structure
 - Context is fragmented across entities
-- Multi-hop questions (\who
-should
-investigate
-based
-on
-prior
-experience
-with
-this
-service\) don't map cleanly to vector similarity
+- Multi-hop questions ("who should investigate based on prior experience with this service") don't map cleanly to vector similarity
 - Provenance/evidence paths are hard to surface reliably
 
 ## Why a Graph is Necessary

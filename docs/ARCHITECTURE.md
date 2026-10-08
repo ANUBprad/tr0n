@@ -8,7 +8,7 @@ Graph is central. Reasoning must use deliberate graph retrieval via tools; LLM m
 
 ## Conceptual Architecture
 
-\\\
+```
 User (Natural Language Query)
         ↓
 TRON Agent (Reasoning + Tool Selection)
@@ -26,7 +26,7 @@ Reasoning / Synthesis
 Answer + Evidence Paths + Recommendation/Action
         ↓
 UI (Minimal, demo-focused)
-\\\
+```
 
 ## Components (Conceptual)
 

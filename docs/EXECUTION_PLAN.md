@@ -59,13 +59,7 @@
 - **Aggressive feature-freeze** by ~Hour 48–52
 - **Test the 5 queries constantly** — treat as acceptance
 - **Evidence-first**: if answer lacks path, fix before polish
-- **Graph centrality check**: periodically ask \
-could
-we
-do
-this
-without
-FalkorDB?\ If yes, rethink
+- **Graph centrality check**: periodically ask "could we do this without FalkorDB?" If yes, rethink
 - **Local-first**: ensure complete local setup works
 - **Cut > extend** when behind
 

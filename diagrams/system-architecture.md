@@ -2,7 +2,7 @@
 
 **Status**: PRE-HACKATHON CONCEPTUAL DIAGRAM — NOT IMPLEMENTATION
 
-\\\mermaid
+```mermaid
 graph TD
     U[User] --> UI[TRON UI - Minimal Q&A]
     UI --> API[FastAPI Backend]
@@ -22,7 +22,7 @@ graph TD
     class FB graph
     class AGENT,TOOLS agent
     class API,UI primary
-\\\
+```
 
 **Notes**: 
 - FalkorDB is central (removing it materially affects reasoning)

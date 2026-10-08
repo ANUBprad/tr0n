@@ -7,23 +7,7 @@
 TRON is a reasoning agent that answers organizational questions by selecting and executing graph traversals against FalkorDB, returning answers with evidence paths.
 
 ## Core Principle
-> \
-The
-LLM
-should
-NOT
-simply
-receive
-the
-entire
-graph.
-Retrieval
-must
-be
-deliberate
-via
-graph
-tools.\
+> The LLM should NOT simply receive the entire graph. Retrieval must be deliberate via graph tools.
 
 ## Conceptual Tools
 
@@ -38,13 +22,7 @@ tools.\
 | **prepare_handoff** | Collect minimal context for handoff | target (issue/system) | curated nodes/edges + evidence bundle | relevant set | Synthesize actionable package |
 
 ## Reasoning Flow (Conceptual)
-1. **Understand**: Parse intent (\who
-owns
-X\, \why
-decision
-D\, \who
-knows
-best\)
+1. **Understand**: Parse intent ("who owns X", "why decision D", "who knows best")
 2. **Plan**: Choose minimal tools needed
 3. **Retrieve**: Call tools to get subgraph + paths
 4. **Evaluate**: Is evidence sufficient? If not, iterate

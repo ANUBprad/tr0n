@@ -46,12 +46,7 @@
 
 ## Design Rationale
 
-- **Multi-hop reasoning**: e.g. \
-Who
-knows
-System
-X
-best?\ → Person MODIFIED/WORKED_ON/AUTHORED related to Service→depends on System X, or resolved incidents affecting System X.
+- **Multi-hop reasoning**: e.g. "Who knows System X best?" → Person MODIFIED/WORKED_ON/AUTHORED related to Service→depends on System X, or resolved incidents affecting System X.
 - **Provenance**: Every answer needs traversable paths (e.g. Decision ←SUPPORTED_BY→ Document, Decision ←DISCUSSED_IN→ Meeting). Paths are first-class evidence.
 - **Expertise inference**: Prefer derived signals (incidents handled, PRs modifying, ownership, authored docs) over asserted tags.
 - **Ownership**: Explicit OWNS + history; avoid guessing without evidence path.
@@ -60,21 +55,21 @@ best?\ → Person MODIFIED/WORKED_ON/AUTHORED related to Service→depends on Sy
 ## Design Examples (PRE-HACKATHON — NOT IMPLEMENTATION)
 
 **Example 1: Find owner of a system**
-`cypher
+```cypher
 // DESIGN EXAMPLE ONLY - NOT EXECUTED/IMPLEMENTED
-MATCH path = (p:Person)-[:OWNS]->(s:System {name: })
+MATCH path = (p:Person)-[:OWNS]->(s:System {name: $name})
 RETURN p, path
-`
+```
 
 **Example 2: Who knows system best (conceptual scoring via paths)**
-`cypher
+```cypher
 // DESIGN EXAMPLE ONLY - conceptual multi-hop
 MATCH (sys:System {name:})
 OPTIONAL MATCH (p:Person)-[:OWNS]->(sys)
 OPTIONAL MATCH (p2:Person)-[:RESOLVED_BY|WORKED_ON|MODIFIED*1..2]->(sys)
 OPTIONAL MATCH (p3:Person)-[:AUTHORED]->(d:Document)-[:RELATED_TO]->(sys)
 RETURN p,p2,p3, count(*) as evidence_count
-`
+```
 
 **Note**: Exact scoring/queries TBD during implementation (post-Oct 15). Examples illustrate graph centrality.
 

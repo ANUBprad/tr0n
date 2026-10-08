@@ -5,7 +5,7 @@
 
 ## Demo Narrative
 
-\\\
+```
 Problem: Need organizational context with evidence
 ↓
 Show Company Graph (conceptual view) — emphasize connections
@@ -21,60 +21,39 @@ Evidence paths surfaced (provenance)
 Answer + justification + evidence
 ↓
 Next action (minimal if any)
-\\\
+```
 
 ## 5 High-Impact Scenarios
 
-### 1. \
-Who
-owns
-this
-system?\
-- **Setup**: Pick a key system (e.g. \Platform
-API\)
+### 1. "Who owns this system?"
+- **Setup**: Pick a key system (e.g. "Platform API")
 - **Action**: Query ownership
 - **Expected**: Owner + OWNS path + evidence
 - **Graph Work**: Direct traversal
 - **Demo Point**: Explicit ownership traceable
 
-### 2. \Who
-knows
-this
-system
-best?\
+### 2. "Who knows this system best?"
 - **Setup**: Same system with history
 - **Action**: Find experts
 - **Expected**: Ranked experts with signals (resolved incidents, PRs, modifications, ownership)
 - **Graph Work**: Multi-hop (Person→history→Service/System)
 - **Demo Point**: Inferred from activity, not tags
 
-### 3. \Why
-was
-this
-decision
-made?\
+### 3. "Why was this decision made?"
 - **Setup**: Key ADR/decision
 - **Action**: Trace decision
 - **Expected**: Decision + SUPPORTED_BY docs + DISCUSSED_IN meetings + author
 - **Graph Work**: Provenance paths
 - **Demo Point**: Evidence-first (show full path)
 
-### 4. \Has
-this
-happened
-before?\
+### 4. "Has this happened before?"
 - **Setup**: Incident on service
 - **Action**: Find related incidents
 - **Expected**: Prior incidents + AFFECTS same service/system + resolution + who handled
 - **Graph Work**: Pattern matching via relationships
 - **Demo Point**: Historical context via graph
 
-### 5. \Who
-should
-handle
-this
-and
-why?\
+### 5. "Who should handle this and why?"
 - **Setup**: New issue on service
 - **Action**: Route investigation
 - **Expected**: Recommendation + justification (owners, recent resolvers, experts) + evidence paths
@@ -82,17 +61,7 @@ why?\
 - **Demo Point**: Actionable grounded recommendation
 
 ## Demo Flow (~3 min)
-1. **Hook (0–30s)**: \Company
-Brain
-—
-answer
-questions
-with
-evidence
-from
-connected
-org
-data\
+1. **Hook (0–30s)**: "Company Brain — answer questions with evidence from connected org data"
 2. **Graph Centrality (30–60s)**: Show graph topology/connections
 3. **Scenario 1–2 (60–120s)**: Ownership + expertise
 4. **Scenario 3 (120–150s)**: Decision traceability (strong provenance)

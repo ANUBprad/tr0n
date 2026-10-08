@@ -2,7 +2,7 @@
 
 **Status**: PRE-HACKATHON CONCEPTUAL DIAGRAM — NOT IMPLEMENTATION
 
-\\\mermaid
+```mermaid
 graph TD
     P[Person] -->|WORKS_IN| T[Team]
     P -->|OWNS| Svc[Service/System]
@@ -31,7 +31,7 @@ graph TD
     class T,Proj,Svc,Sys core
     class Doc,Dec,Meet,Chat,Ticket,Inc,PR,Repo,Tech,Dep activity
     class Svc,Doc,Dec evidence
-\\\
+```
 
 **Notes**: 
 - High-value paths cross entity types

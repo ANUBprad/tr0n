@@ -17,9 +17,7 @@ Record each decision as:
 
 | Date | Decision | Why | Alternatives | Tradeoffs | Owner | Status |
 |---|---|---|---|---|---|---|
-| 2026-10-08 | **TRON naming & scope: Track 03 focus** | Best fit for graph-central \
-Company
-Brain\ with provenance | Broader scope across all tracks | Focus vs flexibility | Team | PROPOSED |
+| 2026-10-08 | **TRON naming & scope: Track 03 focus** | Best fit for graph-central "Company Brain" with provenance | Broader scope across all tracks | Focus vs flexibility | Team | PROPOSED |
 | 2026-10-08 | **FalkorDB as primary graph DB** | Required by hackathon; graph must be central | Other graph DBs | Compliance + fit; constraint is fixed | Team | PROPOSED |
 | 2026-10-08 | **Deliberate graph retrieval (no full graph dump)** | Core differentiator; evidence-driven | Dump graph to context | Accuracy/provenance vs simplicity | Team | PROPOSED |
 | 2026-10-08 | **Synthetic-only data** | Compliance with data restrictions | Real org data (impossible safely) | Safe but needs generation | Team | PROPOSED |

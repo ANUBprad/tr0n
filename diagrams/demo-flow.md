@@ -2,7 +2,7 @@
 
 **Status**: PRE-HACKATHON CONCEPTUAL DIAGRAM — NOT IMPLEMENTATION
 
-\\\mermaid
+```mermaid
 flowchart TD
     Start[Demo Start - Problem Hook] --> Graph[Show Graph Topology - Connections Matter]
     Graph --> Q1[Q1: Who owns this system?]
@@ -24,7 +24,7 @@ flowchart TD
     class Q1,Q2,Q3,Q4,Q5 q
     class A1,A2,A3,A4,A5 a
     class Start,Graph,End story
-\\\
+```
 
 **Notes**: ~3 minutes. Must visibly show FalkorDB traversals produce answers with evidence paths.
 

@@ -15,7 +15,7 @@
 - YAGNI, fewest files
 
 ## Conceptual Core
-\\\
+```
 Clients (Web/Desktop/API)
         ↓
 TRON API (thin)
@@ -27,7 +27,7 @@ Tool Layer (graph tools)
 Graph Adapter (FalkorDB)
         ↓
 FalkorDB (Redis Module)
-\\\
+```
 
 ## Modules (conceptual)
 - api: transport boundary
