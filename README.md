@@ -67,6 +67,7 @@ Graph-central reasoning with provenance. Remove FalkorDB and the product's core 
 - [x] All five graph operations implemented with real-DB tests
 - [x] Seed data generator: deterministic `internal/seed` + `tron seed` (five-query connectivity contract tested)
 - [x] JSON API layer: read-only `internal/api` over all six ops (`tron serve`, real-DB HTTP contract test)
+- [x] Agent loop: deliberate-retrieval core with provider-agnostic `Decide` seam (`internal/agent`, scripted + real-graph tests)
 
 ## Quick Start
 

@@ -18,15 +18,15 @@
 - [x] Smoke test traversals
 
 ### P1 — Agent + Tools (Hours 12–24)
-- [ ] Implement search_graph, find_owner
-- [ ] Implement find_experts, trace_decision, find_related_incidents
-- [ ] Implement trace_evidence (minimal)
-- [ ] Agent loop with deliberate retrieval
+- [x] Implement find_owner (search_graph superseded by ResolveEntity)
+- [x] Implement find_experts, trace_decision, find_related_incidents
+- [x] Implement trace_evidence (minimal)
+- [x] Agent loop with deliberate retrieval
 - [ ] Evidence extraction/format
 
 ### P2 — Integration + API (Hours 24–36)
 - [x] HTTP API endpoints (Go net/http)
-- [ ] Wire agent→tools→FalkorDB
+- [x] Wire agent→tools→FalkorDB
 - [x] End-to-end for 3+ queries
 - [x] Error handling basics
 

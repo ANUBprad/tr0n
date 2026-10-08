@@ -19,8 +19,8 @@ decided — never decide silently in a spec.
 
 | Question | Options | Notes |
 |---|---|---|
-| **LLM Provider** | OpenAI / Anthropic / Local (Ollama) / Gemini | UNDECIDED. Irrelevant to v1 core (no LLM needed); matters only for the future agent layer. Consider cost, rate limits, local fallback. |
-| **Agent framework** | Custom minimal loop vs library | UNDECIDED. When the agent layer lands, prefer minimal tool-calling loop; no framework unless proven necessary. |
+| **LLM Provider** | OpenAI / Anthropic / Local (Ollama) / Gemini | UNDECIDED. Irrelevant to v1 core (no LLM needed); matters only for the future agent layer. Consider cost, rate limits, local fallback. Seam is ready: `agent.Decide` in `internal/agent` — one adapter function per provider. |
+| **Agent framework** | Custom minimal loop vs library | **RESOLVED (2026-10-08): custom minimal loop** — `internal/agent`, provider-agnostic `Decide` seam, bounded step budget, tool errors fed back to the model. No framework; see decision-log. |
 | **Frontend** | Server-rendered minimal page / Vite+React / CLI-first | UNDECIDED. API-first makes this late-stage and cheap to change. |
 | **FalkorDB setup** | Docker compose (default candidate) vs binary | **RESOLVED (2026-10-08): Docker compose** — `compose.yaml` in repo, local-first, no volume (seed recreates data). |
 | **Data generation strategy** | Go generator in-repo vs external script | **RESOLVED (2026-10-08): Go generator in-repo** — `internal/seed` + `tron seed`, deterministic `Generate()` + direct bulk load; see decision-log. |
