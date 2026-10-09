@@ -3,6 +3,11 @@ services:
   falkordb:
     image: falkordb/falkordb:latest
     ports:
-      - "6379:6379"
+      # Loopback only: TRON runs on the host and connects to
+      # localhost:6379, so nothing needs a routable bind.
+      - "127.0.0.1:6379:6379"
     # ponytail: no volume — local dev graph is disposable; add
     # volumes: [falkordb-data:/data] when persistence matters.
+    # ponytail: no auth by default — the image supports it
+    # (verified: REDIS_ARGS=--requirepass <pw>), but enabling it needs a
+    # password threaded through graph.New, so it stays a manual opt-in.
