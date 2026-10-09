@@ -6,12 +6,19 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
 	"github.com/ANUBprad/tr0n/internal/graph"
 )
+
+// maxBodyBytes caps request bodies. The largest TRON payload is a list
+// of keys or a name/label string, all far below this; 1 MiB is generous
+// headroom while still bounding memory per request.
+const maxBodyBytes = 1 << 20
 
 // Handler wires the six endpoints. The graph client is shared across
 // requests: falkordb-go issues stateless commands on a go-redis pool.
@@ -170,13 +177,24 @@ func Handler(c *graph.Client) http.Handler {
 	return mux
 }
 
-// decode reads a strict JSON body: unknown fields are client bugs,
-// not silently ignored inputs.
+// decode reads a strict JSON body: unknown fields are client bugs, not
+// silently ignored inputs. The body is capped, and exactly one JSON
+// value must be present (only trailing whitespace may follow).
 func decode(w http.ResponseWriter, r *http.Request, v interface{}) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			write(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "request body too large"})
+			return false
+		}
 		badRequest(w, "invalid JSON body: "+err.Error())
+		return false
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		badRequest(w, "invalid JSON body: unexpected trailing data")
 		return false
 	}
 	return true

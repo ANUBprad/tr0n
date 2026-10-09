@@ -153,6 +153,14 @@ func TestEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("body hardening", func(t *testing.T) {
+		// valid JSON with trailing whitespace still succeeds
+		postList(t, "/v1/owner", `{"target":"payments-api"}   `, http.StatusOK)
+		// oversized body is reported as a size error, not a syntax error
+		post(t, "/v1/owner", `{"target":"`+strings.Repeat("a", maxBodyBytes)+`"}`,
+			http.StatusRequestEntityTooLarge)
+	})
+
 	t.Run("validation and health", func(t *testing.T) {
 		post(t, "/v1/owner", `{}`, http.StatusBadRequest)
 		post(t, "/v1/owner", `{"target":"x","typo":1}`, http.StatusBadRequest)
@@ -184,5 +192,38 @@ func TestUnknownRoute(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("unknown route = %d, want 404", resp.StatusCode)
+	}
+}
+
+// Unsafe bodies are rejected at the handler boundary before any graph
+// call, so this needs no FalkorDB — the client is never contacted.
+func TestDecodeRejectsUnsafeBodies(t *testing.T) {
+	c, _ := graph.New("localhost:1", "tron_api_test")
+	srv := httptest.NewServer(Handler(c))
+	defer srv.Close()
+	post := func(body string) int {
+		t.Helper()
+		resp, err := http.Post(srv.URL+"/v1/owner", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+	oversized := `{"target":"` + strings.Repeat("a", maxBodyBytes) + `"}`
+	cases := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"malformed json", `{"target":`, http.StatusBadRequest},
+		{"trailing json value", `{"target":"x"}{}`, http.StatusBadRequest},
+		{"trailing garbage", `{"target":"x"} junk`, http.StatusBadRequest},
+		{"oversized body", oversized, http.StatusRequestEntityTooLarge},
+	}
+	for _, tc := range cases {
+		if got := post(tc.body); got != tc.want {
+			t.Errorf("%s: got %d, want %d", tc.name, got, tc.want)
+		}
 	}
 }

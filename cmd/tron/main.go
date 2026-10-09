@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/ANUBprad/tr0n/internal/api"
 	"github.com/ANUBprad/tr0n/internal/graph"
@@ -59,7 +60,7 @@ func main() {
 		mux.Handle("/v1/", api.Handler(c))
 		mux.Handle("/", ui.Handler(c))
 		fmt.Printf("tron listening on http://%s (Q&A UI at /, JSON API at /v1)\n", httpAddr)
-		if err := http.ListenAndServe(httpAddr, mux); err != nil {
+		if err := newServer(httpAddr, mux).ListenAndServe(); err != nil {
 			fatal(err)
 		}
 	default:
@@ -68,6 +69,20 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       tron demo          run the five demo scenarios as pass/fail checks")
 		fmt.Fprintln(os.Stderr, "       tron serve         serve the Q&A UI + JSON API (TRON_HTTP_ADDR)")
 		os.Exit(2)
+	}
+}
+
+// newServer bounds a slow or stalled client. Handlers are synchronous
+// graph queries with small responses, so these values are generous
+// rather than tight; there is no streaming or long-lived connection.
+func newServer(addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 }
 
