@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -167,8 +168,8 @@ func Handler(c *graph.Client) http.Handler {
 
 	mux.HandleFunc("GET /v1/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := c.Ping(); err != nil {
-			write(w, http.StatusServiceUnavailable, map[string]string{
-				"status": "unavailable", "error": err.Error()})
+			log.Printf("api: health: %v", err)
+			write(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
 			return
 		}
 		write(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -210,6 +211,9 @@ func badRequest(w http.ResponseWriter, msg string) {
 	write(w, http.StatusBadRequest, map[string]string{"error": msg})
 }
 
+// serverError logs the diagnostic server-side and returns a stable,
+// non-sensitive body: internal errors are not the client's business.
 func serverError(w http.ResponseWriter, err error) {
-	write(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	log.Printf("api: %v", err)
+	write(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 }

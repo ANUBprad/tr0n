@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -226,4 +227,68 @@ func TestDecodeRejectsUnsafeBodies(t *testing.T) {
 			t.Errorf("%s: got %d, want %d", tc.name, got, tc.want)
 		}
 	}
+}
+
+// Internal failures must not reach the client: 500 with a stable body,
+// with the diagnostic kept server-side. A dead address makes the failure
+// deterministic (connection refused) without needing a live database.
+func TestInternalErrorsAreSanitized(t *testing.T) {
+	c, _ := graph.New("localhost:1", "tron_api_test")
+	srv := httptest.NewServer(Handler(c))
+	defer srv.Close()
+
+	get := func(path string) (int, string) {
+		t.Helper()
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	post := func(body string) (int, string) {
+		t.Helper()
+		resp, err := http.Post(srv.URL+"/v1/owner", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+
+	// Unexpected graph failure → generic 500, no internal detail.
+	if code, body := post(`{"target":"x"}`); code != http.StatusInternalServerError {
+		t.Fatalf("failure: got %d, want 500: %s", code, body)
+	} else if leaks(body) {
+		t.Errorf("500 body leaked internal error: %s", body)
+	} else if !strings.Contains(body, "internal error") {
+		t.Errorf("500 body not the generic message: %s", body)
+	}
+
+	// Health failure → 503 retained, no internal detail.
+	if code, body := get("/v1/health"); code != http.StatusServiceUnavailable {
+		t.Fatalf("health: got %d, want 503: %s", code, body)
+	} else if leaks(body) {
+		t.Errorf("health body leaked internal error: %s", body)
+	}
+
+	// Client validation error keeps its 4xx status and safe message.
+	if code, body := post(`{}`); code != http.StatusBadRequest {
+		t.Fatalf("validation: got %d, want 400: %s", code, body)
+	} else if !strings.Contains(body, "target is required") {
+		t.Errorf("validation message lost: %s", body)
+	}
+}
+
+// leaks reports whether a response body contains driver/query internals
+// that must stay server-side.
+func leaks(body string) bool {
+	for _, s := range []string{"connection refused", "dial tcp", "find owner", "REDIS", "redis"} {
+		if strings.Contains(body, s) {
+			return true
+		}
+	}
+	return false
 }

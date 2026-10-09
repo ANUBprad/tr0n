@@ -109,3 +109,23 @@ func TestBadRequests(t *testing.T) {
 		t.Errorf("unknown path = %d, want 404", status)
 	}
 }
+
+// A graph failure must not reach the browser: 500 with a generic body,
+// detail kept server-side. A dead address makes it deterministic.
+func TestInternalErrorsAreSanitized(t *testing.T) {
+	c, _ := graph.New("localhost:1", "tron_ui_test")
+	srv := httptest.NewServer(Handler(c))
+	defer srv.Close()
+	status, body := get(t, srv.URL+"/?q=owner")
+	if status != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d: %s", status, body)
+	}
+	for _, s := range []string{"connection refused", "dial tcp", "graph error", "find owner"} {
+		if strings.Contains(body, s) {
+			t.Errorf("response leaked internal detail %q: %s", s, body)
+		}
+	}
+	if !strings.Contains(body, "internal error") {
+		t.Errorf("want generic message, got %s", body)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -72,13 +73,15 @@ func Handler(c *graph.Client) http.Handler {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			case err != nil:
-				http.Error(w, "graph error: "+err.Error(), http.StatusInternalServerError)
+				log.Printf("ui: %s: %v", v.Active, err)
+				http.Error(w, "internal error", http.StatusInternalServerError)
 				return
 			default:
 				if err := a.Validate(); err != nil {
 					// A composer produced an untagged/unevidenced claim —
 					// refuse to render it (AGENT_SPEC response-type guard).
-					http.Error(w, "answer failed validation: "+err.Error(), http.StatusInternalServerError)
+					log.Printf("ui: %s: answer failed validation: %v", v.Active, err)
+					http.Error(w, "internal error", http.StatusInternalServerError)
 					return
 				}
 				v.Answer, v.Sections = a, sections
