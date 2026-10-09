@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/FalkorDB/falkordb-go/v2"
@@ -13,7 +14,16 @@ import (
 	"github.com/ANUBprad/tr0n/internal/knowledge"
 )
 
+// Client wraps one connection pool and one graph handle. The handle's
+// schema cache (labels/relations/properties) is written without
+// synchronization while results are parsed, so a shared handle needs
+// mutual exclusion. The pool underneath is already concurrency-safe.
+// ponytail: one global lock serializes every graph access — a
+// deliberate ceiling for the local demo; upgrade path is a handle per
+// operation via db.SelectGraph, which shares the same pool, then drop
+// the lock.
 type Client struct {
+	mu sync.Mutex
 	db *falkordb.FalkorDB
 	g  *falkordb.Graph
 }
@@ -45,6 +55,8 @@ type Owner struct {
 // FindOwner answers "who owns this?" for an entity matched by name or
 // key. Current owners only: superseded (valid_to) edges are ignored.
 func (c *Client) FindOwner(target string) ([]Owner, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	const q = `
 	MATCH (o)-[r:OWNS]->(t)
 	WHERE (t.name = $target OR t.key = $target) AND r.valid_to IS NULL
@@ -101,6 +113,8 @@ const expertsQuery = `
 // deterministic expertise/v1 scoring over fact paths, ranked with
 // current owners first. Pure function of (graph, now).
 func (c *Client) FindExperts(serviceKey string, limit int, now time.Time) (*knowledge.ExpertiseResult, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	res, err := c.g.ROQuery(expertsQuery, map[string]interface{}{"key": serviceKey}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("find experts %q: %w", serviceKey, err)
@@ -186,6 +200,8 @@ type SupersedesRef struct {
 // upgrade path: identity resolution aliases once multiple sources
 // exist.
 func (c *Client) TraceDecision(ref string) (*DecisionTrace, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	const resolve = `
 	MATCH (d:Decision)
 	WHERE d.key = $q OR d.title = $q
@@ -323,6 +339,8 @@ type IncidentRef struct {
 // case-insensitive substring of the title. Both filters are
 // deterministic: no fuzzy matching, ever.
 func (c *Client) FindRelatedIncidents(serviceKey, since, keyword string) ([]IncidentRef, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	var sinceT time.Time
 	if since != "" {
 		t, err := time.Parse(time.RFC3339, since)
@@ -455,6 +473,8 @@ type Candidate struct {
 // ponytail: one scan of label/key/name per call, fine for the v1
 // synthetic graph; upgrade path = per-tier indexed lookups.
 func (c *Client) ResolveEntity(name, label string) (Resolution, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	empty := Resolution{Candidates: []Candidate{}}
 	if name == "" {
 		return empty, nil
@@ -512,6 +532,8 @@ func (c *Client) ResolveEntity(name, label string) (Resolution, error) {
 // ponytail: 3 queries total regardless of input size; upgrade path =
 // single batched query if drill-down latency is ever measured.
 func (c *Client) TraceEvidence(keys []string) ([]NodeEvidence, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	out := make([]NodeEvidence, 0, len(keys))
 	if len(keys) == 0 {
 		return out, nil

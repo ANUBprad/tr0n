@@ -39,12 +39,16 @@ func allowed(set []string, s string) bool {
 
 // Ping verifies the graph answers — the health endpoint's check.
 func (c *Client) Ping() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	_, err := c.g.ROQuery("RETURN 1", nil, nil)
 	return err
 }
 
 // Delete removes the whole graph — test cleanup and the reset path.
 func (c *Client) Delete() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.g.Delete()
 }
 
@@ -55,6 +59,8 @@ func (c *Client) Delete() error {
 // error and is treated as already wiped; upgrade path = GRAPH.LIST
 // pre-check if FalkorDB ever changes that error text.
 func (c *Client) Reset() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if err := c.g.Delete(); err != nil && !strings.Contains(err.Error(), "empty key") {
 		return fmt.Errorf("wipe graph: %w", err)
 	}
@@ -70,6 +76,8 @@ func (c *Client) Reset() error {
 // LoadNodes creates one node per row under the given label; each row
 // must carry a unique `key` plus node provenance.
 func (c *Client) LoadNodes(label string, rows []map[string]interface{}) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if !allowed(nodeLabels, label) {
 		return fmt.Errorf("unknown node label %q", label)
 	}
@@ -92,6 +100,8 @@ func (c *Client) LoadNodes(label string, rows []map[string]interface{}) error {
 // LoadEdges creates one typed edge per row between existing keys,
 // with the row's properties (provenance) attached.
 func (c *Client) LoadEdges(rel string, rows []EdgeRow) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if !allowed(edgeTypes, rel) {
 		return fmt.Errorf("unknown relationship type %q", rel)
 	}

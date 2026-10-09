@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +34,36 @@ func newTestClient(t *testing.T) *Client {
 		c.Close()
 	})
 	return c
+}
+
+// TestConcurrentAccess drives one shared client from many goroutines.
+// The driver mutates a per-graph schema cache while parsing results, so
+// this fails under `go test -race` if Client's mutual exclusion regresses.
+func TestConcurrentAccess(t *testing.T) {
+	c := newTestClient(t)
+	seed := `
+	CREATE (ada:Person {key: 'person:ada', name: 'Ada'}),
+	       (svc:Service {key: 'service:payments', name: 'payments-api'}),
+	       (ada)-[:OWNS {src_type: 'service_registry', src_ref: 'registry.json',
+	                     observed_at: '2026-10-08T00:00:00Z', extraction: 'deterministic',
+	                     valid_from: '2026-02-01'}]->(svc)`
+	if _, err := c.g.Query(seed, nil, nil); err != nil {
+		t.Fatalf("seed fixture: %v", err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.FindExperts("service:payments", 5, time.Now()); err != nil {
+				t.Errorf("FindExperts: %v", err)
+			}
+			if _, err := c.TraceEvidence([]string{"person:ada"}); err != nil {
+				t.Errorf("TraceEvidence: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 // The one runnable check for FindOwner: provenance round-trip,
