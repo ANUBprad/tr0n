@@ -1,5 +1,9 @@
 # MVP_SCOPE.md
 
+> **SUPERSEDED** by [`PRD.md`](PRD.md) (scope) and
+> [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md) (sequencing). Kept for
+> history; not canonical. See [`README.md`](README.md) for the document set.
+
 **Status**: PRE-HACKATHON DESIGN — NOT IMPLEMENTATION  
 **Goal**: Smallest set that enables a strong Track 03 demo
 

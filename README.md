@@ -34,23 +34,29 @@ Existing RAG approaches lose organizational context and relationship structure. 
 
 Graph-central reasoning with provenance. Remove FalkorDB and the product's core reasoning capability is materially affected.
 
-## Quick Links
+## Documentation
 
-- [Project Overview](docs/PROJECT.md)
-- [Hackathon Details & Constraints](docs/HACKATHON.md)
-- [Product Specification](docs/PRODUCT_SPEC.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Graph Model](docs/GRAPH_MODEL.md)
-- [Agent Specification](docs/AGENT_SPEC.md)
-- [Data Specification](docs/DATA_SPEC.md)
-- [Demo Specification](docs/DEMO_SPEC.md)
-- [Judging Strategy](docs/JUDGING_STRATEGY.md)
-- [MVP Scope](docs/MVP_SCOPE.md)
-- [Team Plan](docs/TEAM_PLAN.md)
-- [Execution Plan](docs/EXECUTION_PLAN.md)
-- [Security & Data](docs/SECURITY_AND_DATA.md)
-- [Open Questions](docs/OPEN_QUESTIONS.md)
-- [Decision Log](planning/decision-log.md)
+Full index and authority map: [**docs/README.md**](docs/README.md).
+
+Canonical documents:
+
+- [Product Requirements (PRD)](docs/PRD.md)
+- [Target Architecture](docs/TECHSPEC.md)
+- [Knowledge Model](docs/SCHEMA.md)
+- [Ingestion](docs/INGESTION.md)
+- [Reasoning](docs/REASONING.md)
+- [Actions](docs/ACTIONS.md)
+- [Application Flows](docs/APPFLOW.md)
+- [Security](docs/SECURITY.md)
+- [Evaluation](docs/EVALUATION.md)
+- [Engineering Rules & Risks](docs/RULES.md)
+- [Implementation Roadmap](docs/IMPLEMENTATIONPLAN.md)
+- [Status Tracker](docs/TRACKER.md)
+
+Locked current-state authorities: [architecture-minimal.md](docs/architecture-minimal.md),
+[GRAPH_MODEL.md](docs/GRAPH_MODEL.md), [knowledge-model.md](docs/knowledge-model.md),
+[AGENT_SPEC.md](docs/AGENT_SPEC.md), [decision-log.md](planning/decision-log.md).
+Historical/hackathon-era docs are marked superseded; see the index.
 
 ## Build Status
 

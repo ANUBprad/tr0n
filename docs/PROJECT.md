@@ -1,5 +1,8 @@
 # PROJECT.md
 
+> **SUPERSEDED** by [`PRD.md`](PRD.md). Kept for history; not canonical.
+> See [`README.md`](README.md) for the authoritative document set.
+
 **Status**: PRE-HACKATHON DESIGN — NOT IMPLEMENTATION
 
 ## What is TRON?

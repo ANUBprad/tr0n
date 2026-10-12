@@ -1,5 +1,9 @@
 # EXECUTION_PLAN.md
 
+> **SUPERSEDED** by [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md) and
+> [`TRACKER.md`](TRACKER.md). Kept for history; not canonical.
+> See [`README.md`](README.md) for the authoritative document set.
+
 **Status**: PRE-HACKATHON DESIGN — NOT IMPLEMENTATION  
 **Window**: Oct 15 00:01 AM IST – Oct 18 23:59 PM IST (72 hours)  
 **Strategy**: Feature freeze early, demo harden late

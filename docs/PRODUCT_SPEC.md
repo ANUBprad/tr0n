@@ -1,5 +1,8 @@
 # PRODUCT_SPEC.md
 
+> **SUPERSEDED** by [`PRD.md`](PRD.md). Kept for history; not canonical.
+> See [`README.md`](README.md) for the authoritative document set.
+
 **Status**: PRE-HACKATHON DESIGN — NOT IMPLEMENTATION  
 **Optimization Goal**: 72-hour hackathon (working > broad, deep > shallow)
 

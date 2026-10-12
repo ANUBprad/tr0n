@@ -1,5 +1,8 @@
 # SECURITY_AND_DATA.md
 
+> **SUPERSEDED** by [`SECURITY.md`](SECURITY.md). Kept for history; not canonical.
+> See [`README.md`](README.md) for the authoritative document set.
+
 **Status**: PRE-HACKATHON DESIGN — NOT IMPLEMENTATION
 
 ## Data Policy (Hard Constraint)

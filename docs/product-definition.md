@@ -1,5 +1,8 @@
 # TRON — Product Definition (Concise)
 
+> **SUPERSEDED** by [`PRD.md`](PRD.md). Kept for history; not canonical.
+> See [`README.md`](README.md) for the authoritative document set.
+
 **Status**: PRE-IMPLEMENTATION
 
 ## What TRON Is

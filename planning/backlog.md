@@ -1,5 +1,9 @@
 # backlog.md
 
+> **SUPERSEDED** by [`../docs/IMPLEMENTATIONPLAN.md`](../docs/IMPLEMENTATIONPLAN.md)
+> and the backlog in [`../docs/TRACKER.md`](../docs/TRACKER.md). Kept for
+> history; not canonical.
+
 **Status**: PRE-HACKATHON — Planning backlog (NOT implementation tasks)
 
 ## PRE-HACKATHON (Complete/Planned)

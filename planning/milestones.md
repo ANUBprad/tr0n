@@ -1,5 +1,9 @@
 # milestones.md
 
+> **SUPERSEDED** by [`../docs/IMPLEMENTATIONPLAN.md`](../docs/IMPLEMENTATIONPLAN.md)
+> and [`../docs/TRACKER.md`](../docs/TRACKER.md). Historical progress is
+> preserved as Milestone 0. Kept for history; not canonical.
+
 **Status**: PRE-HACKATHON — Milestones (Implementation starts Oct 15)
 
 | Milestone | Target (Hackathon) | Status | Exit Criteria |
