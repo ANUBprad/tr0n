@@ -24,7 +24,7 @@
 | ID | Milestone | Status | Evidence |
 |---|---|---|---|
 | M0 | Architecture & repository baseline | **Verified** | `tron demo` 6/6; 9 test files; decision-log |
-| M1 | Trustworthy organizational memory | **In progress** | schema/provenance/temporal exist; no contradiction/staleness surfacing |
+| M1 | Trustworthy organizational memory | **In progress** | schema/provenance/temporal + fact-write validation exist; no contradiction/staleness surfacing |
 | M2 | Data ingestion & synchronization | **Not started** | only `internal/seed` writes facts |
 | M3 | Evidence-grounded reasoning | **In progress** | agent loop + 6 ops + `Answer.Validate`; no LLM provider wired |
 | M4 | Decision support | **Not started** | — |
@@ -46,6 +46,7 @@
 | Component | File | Status | Gaps |
 |---|---|---|---|
 | Graph layer | `internal/graph/graph.go` | **Verified** | one global mutex (`ponytail:` ceiling) |
+| Fact-write contract | `internal/graph/load.go` | **Verified** | key shape, provenance minimum, referential integrity, temporal windows; `internal/graph/load_test.go` |
 | Entity resolution | `internal/knowledge/resolve.go` | **Verified** | single-source; no cross-source merge |
 | Expertise | `internal/knowledge/expertise.go` | **Verified** | weights unvalidated (R10) |
 | Decision trace | `internal/knowledge/decision.go` | **Verified** | — |
@@ -91,7 +92,7 @@
 ### Evaluation & docs
 | Component | Status | Evidence/Gaps |
 |---|---|---|
-| Go test suites (9 files) | **Verified** | real-FalkorDB op tests; provenance/layering invariants |
+| Go test suites (10 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants |
 | Eval suites E1–E12 | **In progress** | E1/E2/E4/E5 partial; rest planned |
 | Comparison baselines | **Not started** | keyword search, RAG, tool-LLM |
 | Canonical docs (this set) | **Verified** | `docs/README.md` index |

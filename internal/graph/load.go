@@ -3,6 +3,7 @@ package graph
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // EdgeRow is one edge for the bulk loader: endpoints by key plus edge
@@ -35,6 +36,114 @@ func allowed(set []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// The fact-write contract (docs/knowledge-model.md, docs/GRAPH_MODEL.md,
+// docs/SCHEMA.md §4.1). stateRelations are the mutating relations that
+// must carry a valid_from window; every other type is an event/evidence
+// edge (time lives on the event node) and must not carry valid_to.
+var stateRelations = []string{"WORKS_IN", "OWNS", "WORKED_ON", "HAS_REPO", "DEPENDS_ON"}
+
+// factProvenance is the minimum required provenance on every fact node
+// and edge. valid_from/valid_to are conditional on relation kind and are
+// validated separately.
+var factProvenance = []string{"src_type", "src_ref", "observed_at", "extraction"}
+
+// strCell reads a string property; an absent or non-string cell reads "".
+func strCell(props map[string]interface{}, k string) string {
+	s, _ := props[k].(string)
+	return s
+}
+
+// keyShapeOK reports whether key is a non-empty "<src>:<native-id>" with
+// both sides non-empty (docs/knowledge-model.md identity). The native id
+// may itself contain colons (e.g. "github:acme/api/pull/123").
+func keyShapeOK(key string) bool {
+	i := strings.Index(key, ":")
+	return i > 0 && i < len(key)-1
+}
+
+// validateNode enforces the node half of the fact-write contract: key
+// present and "<src>:<id>" shaped, no duplicate key in the batch, and
+// the minimum provenance present. seen accumulates keys across the batch.
+func validateNode(label string, row map[string]interface{}, seen map[string]bool) error {
+	key := strCell(row, "key")
+	if key == "" {
+		return fmt.Errorf("%s node: missing required field %q", label, "key")
+	}
+	if !keyShapeOK(key) {
+		return fmt.Errorf("%s node %q: key must be %q", label, key, "<src>:<id>")
+	}
+	if seen[key] {
+		return fmt.Errorf("%s node %q: duplicate key in batch", label, key)
+	}
+	seen[key] = true
+	for _, f := range factProvenance {
+		if strCell(row, f) == "" {
+			return fmt.Errorf("%s node %q: missing required provenance field %q", label, key, f)
+		}
+	}
+	return nil
+}
+
+// validateEdge enforces the edge half of the fact-write contract:
+// endpoints present, minimum provenance, state relations carry a
+// parseable valid_from, event/evidence relations carry no valid_to, and
+// valid_to is never earlier than valid_from.
+func validateEdge(rel string, r EdgeRow) error {
+	if r.From == "" || r.To == "" {
+		return fmt.Errorf("%s edge: missing endpoint (from=%q to=%q)", rel, r.From, r.To)
+	}
+	for _, f := range factProvenance {
+		if strCell(r.Props, f) == "" {
+			return fmt.Errorf("%s edge %s->%s: missing required provenance field %q", rel, r.From, r.To, f)
+		}
+	}
+	validFrom := strCell(r.Props, "valid_from")
+	validTo := strCell(r.Props, "valid_to")
+	if allowed(stateRelations, rel) && validFrom == "" {
+		return fmt.Errorf("%s edge %s->%s: state relation requires %q", rel, r.From, r.To, "valid_from")
+	}
+	if !allowed(stateRelations, rel) && validTo != "" {
+		return fmt.Errorf("%s edge %s->%s: event/evidence relation must not carry %q", rel, r.From, r.To, "valid_to")
+	}
+	if validFrom != "" && validTo != "" {
+		vf, err := time.Parse(time.RFC3339, validFrom)
+		if err != nil {
+			return fmt.Errorf("%s edge %s->%s: valid_from %q is not RFC3339: %w", rel, r.From, r.To, validFrom, err)
+		}
+		vt, err := time.Parse(time.RFC3339, validTo)
+		if err != nil {
+			return fmt.Errorf("%s edge %s->%s: valid_to %q is not RFC3339: %w", rel, r.From, r.To, validTo, err)
+		}
+		if vt.Before(vf) {
+			return fmt.Errorf("%s edge %s->%s: valid_to %s is before valid_from %s", rel, r.From, r.To, validTo, validFrom)
+		}
+	}
+	return nil
+}
+
+// missingEndpoints returns the from->to of every row whose source or
+// target key does not exist. It runs before any create, so a batch with
+// a dangling endpoint never mutates the graph.
+func (c *Client) missingEndpoints(payload []interface{}) ([]string, error) {
+	const q = `
+	UNWIND $rows AS r
+	OPTIONAL MATCH (a {key: r.from})
+	OPTIONAL MATCH (b {key: r.to})
+	WITH r, a, b
+	WHERE a IS NULL OR b IS NULL
+	RETURN r.from AS src, r.to AS dst`
+	res, err := c.g.ROQuery(q, map[string]interface{}{"rows": payload}, nil)
+	if err != nil {
+		return nil, err
+	}
+	var missing []string
+	for res.Next() {
+		rec := res.Record()
+		missing = append(missing, field(rec, "src")+"->"+field(rec, "dst"))
+	}
+	return missing, nil
 }
 
 // Ping verifies the graph answers — the health endpoint's check.
@@ -84,6 +193,14 @@ func (c *Client) LoadNodes(label string, rows []map[string]interface{}) error {
 	if len(rows) == 0 {
 		return nil
 	}
+	// Validate the whole batch before any write, so an invalid batch
+	// never leaves a partial load behind.
+	seen := make(map[string]bool, len(rows))
+	for i, r := range rows {
+		if err := validateNode(label, r, seen); err != nil {
+			return fmt.Errorf("load %s nodes: row %d: %w", label, i, err)
+		}
+	}
 	// falkordb-go's param encoder type-switches exactly: convert to the
 	// shapes it knows ([]interface{} of map/string) before sending.
 	payload := make([]interface{}, len(rows))
@@ -108,9 +225,24 @@ func (c *Client) LoadEdges(rel string, rows []EdgeRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
+	// Validate the whole batch before any write, so an invalid batch
+	// never leaves a partial load behind.
+	for i, r := range rows {
+		if err := validateEdge(rel, r); err != nil {
+			return fmt.Errorf("load %s edges: row %d: %w", rel, i, err)
+		}
+	}
 	payload := make([]interface{}, len(rows))
 	for i, r := range rows {
 		payload[i] = map[string]interface{}{"from": r.From, "to": r.To, "props": r.Props}
+	}
+	// Both endpoints must already exist; a dangling edge is an explicit
+	// error, never a silent drop. Checked before the create.
+	if missing, err := c.missingEndpoints(payload); err != nil {
+		return fmt.Errorf("check %s edge endpoints: %w", rel, err)
+	} else if len(missing) > 0 {
+		return fmt.Errorf("load %s edges: %d row(s) reference a missing endpoint: %s",
+			rel, len(missing), strings.Join(missing, ", "))
 	}
 	q := fmt.Sprintf(`
 	UNWIND $rows AS r
