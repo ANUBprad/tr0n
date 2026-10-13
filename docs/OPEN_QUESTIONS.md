@@ -20,6 +20,7 @@ decided — never decide silently in a spec.
 | Question | Options | Notes |
 |---|---|---|
 | **LLM Provider** | OpenAI / Anthropic / Local (Ollama) / Gemini | UNDECIDED. Irrelevant to v1 core (no LLM needed); matters only for the future agent layer. Consider cost, rate limits, local fallback. Seam is ready: `agent.Decide` in `internal/agent` — one adapter function per provider. |
+| **Key uniqueness enforcement** | DB unique constraint/index vs loader-/ingestion-enforced | UNRESOLVED. `key` is *required* unique per label (`GRAPH_MODEL.md`), but the shipped index is **non-unique** (`CREATE INDEX`, no UNIQUE) and only the bulk loader's in-batch check rejects duplicates. Product decision required before M1 close; referenced by `GRAPH_MODEL.md` Indexes, tracked in `TRACKER.md`. |
 | **Agent framework** | Custom minimal loop vs library | **RESOLVED (2026-10-08): custom minimal loop** — `internal/agent`, provider-agnostic `Decide` seam, bounded step budget, tool errors fed back to the model. No framework; see decision-log. |
 | **Frontend** | Server-rendered minimal page / Vite+React / CLI-first | **RESOLVED (2026-10-08): server-rendered minimal page** — stdlib `html/template` served by `tron serve` at `/`, five built-in questions + evidence panels over the JSON API. No JS toolchain; swap is cheap if needed. |
 | **FalkorDB setup** | Docker compose (default candidate) vs binary | **RESOLVED (2026-10-08): Docker compose** — `compose.yaml` in repo, local-first, no volume (seed recreates data). |

@@ -2,7 +2,7 @@
 
 **Status**: Canonical. Authority for the dependency-aware plan from current
 implementation to the target organizational brain.
-**Last updated**: 2026-10-12.
+**Last updated**: 2026-10-13.
 **Supersedes**: `EXECUTION_PLAN.md`, `planning/milestones.md`,
 `planning/backlog.md` (kept for history).
 **Related**: [`PRD.md`](PRD.md), [`TECHSPEC.md`](TECHSPEC.md),
@@ -26,7 +26,7 @@ implementation to the target organizational brain.
 - **Files**: existing tree.
 - **Test strategy**: real-FalkorDB op tests, provenance/layering invariants,
   seed determinism + connectivity contract, `tron demo` pass/fail.
-  (CONFIRMED: 9 test files.)
+  (CONFIRMED: 10 test files.)
 - **Acceptance**: `tron demo` passes 6/6; architecture locked in decision-log.
 - **Definition of done**: **MET** (verify with `go test ./...` and `tron demo`).
 - **Risks / deferred**: stale `.tron_audit.md`; hackathon-era docs coexist —
@@ -43,11 +43,26 @@ implementation to the target organizational brain.
 - **Dependencies**: M0.
 - **Files**: `internal/graph` (queries), `internal/knowledge` (types),
   `internal/seed` (fixtures for conflicts).
+- **Progress (2026-10-13)**: Slice 1 landed — the fact-write contract (key
+  shape, provenance minimum, referential integrity, temporal-window
+  validation) is enforced at the bulk loader (`internal/graph/load.go`,
+  `load_test.go`).
 - **Test strategy**: E1 (resolution), E5 (temporal), E6 (contradiction),
   provenance invariants extended.
-- **Acceptance**: as-of queries correct on time-shifted fixtures; injected
-  contradictions surfaced (not hidden); duplicate identity yields candidates,
-  never a wrong merge.
+- **Acceptance (target)**: as-of queries correct on time-shifted fixtures;
+  injected contradictions surfaced (not hidden); duplicate identity yields
+  candidates, never a wrong merge.
+- **Outstanding — not met (2026-10-13)**:
+  - **Temporal as-of correctness** — state ops (e.g. `FindOwner`) return
+    current state only; no `as_of` parameter and no historical query exist.
+    `valid_from`/`valid_to` are validated at write but never queried as-of.
+    No time-shifted fixtures. E5 is **PROPOSED** (not PARTIAL/evidenced).
+  - **Contradiction surfacing** — no derivation or surfacing of conflicting
+    facts on the same subject/predicate. E6 is **PROPOSED**.
+  - **Identity / duplicate behavior** — single-source resolution only; the
+    `key` uniqueness requirement is **not** database-enforced (non-unique
+    index; loader in-batch check only). E1 is **PARTIAL**.
+  - **Evidence** — no green E1/E5/E6 suites; E1/E5/E6 lack runnable fixtures.
 - **Definition of done**: suites E1/E5/E6 green; schema changes recorded in ADR.
 - **Risks / deferred**: real multi-source identity resolution deferred to M2.
 - **Explicitly NOT done**: no real sources yet.

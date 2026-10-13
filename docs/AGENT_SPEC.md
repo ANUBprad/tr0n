@@ -34,9 +34,10 @@ query, never variable-length to infinity.
 
 ### FindOwner
 
-- **Input**: entity `key` or (`label`, `name`); optional `as_of` timestamp
-- **Output**: owner person/team nodes + `OWNS` edges (with provenance and
-  validity windows); `current: bool`
+- **Input (target contract)**: entity `key` or (`label`, `name`); optional
+  `as_of` timestamp
+- **Output (target contract)**: owner person/team nodes + `OWNS` edges (with
+  provenance and validity windows); `current: bool`
 - **Traversal**: resolve → `(o)-[:OWNS]->(t)` filtered `valid_to IS NULL`
   (or as-of window)
 - **Deterministic logic**: entity resolution (exact key, then exact name,
@@ -44,6 +45,14 @@ query, never variable-length to infinity.
 - **Provenance returned**: per-edge `src_*`, `valid_from`/`valid_to`,
   layer = FACT
 - **Answers**: "Who owns this?"
+
+**Current implementation** (`internal/graph/graph.go` `FindOwner`): takes a
+single `target` key or name and returns **current owners only** (`OWNS` edges
+with `valid_to IS NULL`). There is **no `as_of` argument and no historical
+(as-of) query**, and `current: bool` is not returned. Those are **PROPOSED**
+(amended 2026-10-13): temporal as-of correctness is an outstanding M1
+criterion (`IMPLEMENTATIONPLAN.md`, `TRACKER.md`). The bullets above state the
+intended contract, not shipped behavior.
 
 ### FindExperts
 

@@ -1,7 +1,7 @@
 # TRON — Canonical Organizational Knowledge Model (SCHEMA)
 
 **Status**: Canonical. Authority for the **target** knowledge model.
-**Last updated**: 2026-10-12.
+**Last updated**: 2026-10-13.
 **Current-schema authority**: [`GRAPH_MODEL.md`](GRAPH_MODEL.md) (locked: 11
 entities / 16 relationships) and [`knowledge-model.md`](knowledge-model.md)
 (locked: layers, provenance, temporal rules). This document specifies the
@@ -202,7 +202,10 @@ Rules:
 
 ## 7. Identity, provenance, and naming (unchanged, restated)
 
-- **Identity**: `key = "<src>:<native-id>"`. Indexed, unique per label.
+- **Identity**: `key = "<src>:<native-id>"`. **Required** unique and indexed
+  per label; the current implementation ships a **non-unique** index only
+  ([`GRAPH_MODEL.md`](GRAPH_MODEL.md) Indexes; unresolved in
+  `OPEN_QUESTIONS.md`).
 - **Provenance minimum on every fact**: `src_type`, `src_ref`, `observed_at`,
   `extraction`, `valid_from`/`valid_to` (state edges). `confidence` only when
   extraction is non-deterministic (`knowledge-model.md`).

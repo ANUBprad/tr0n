@@ -13,9 +13,11 @@ until a real query demands it.
 
 ## Entities (initial: 11)
 
-All nodes: `key` = `"<src>:<native-id>"` (identity, indexed, unique per
-label), plus node provenance `src_type`, `src_ref`, `observed_at`,
-`extraction`. `name`/`title` indexed per label for entity resolution.
+All nodes: `key` = `"<src>:<native-id>"` (identity; **requirement**: unique and
+indexed per label — current implementation is a non-unique index only, see
+Indexes below), plus node provenance `src_type`, `src_ref`, `observed_at`,
+`extraction`. `name`/`title` **required** indexed per label for entity
+resolution (not yet created — see Indexes).
 
 | Entity | Required properties | Optional properties | Native timestamps |
 |---|---|---|---|
@@ -105,8 +107,21 @@ v1 (see `knowledge-model.md`). Temporal = carries
   contributes to expertise and decision evidence.
 - `USES` — grounds "relevant technology experience" in the routing workflow.
 
-## Indexes (design note)
+## Indexes (requirement vs current implementation)
 
-- Unique index on `key` for every label (identity + fast resolve).
-- Index on `name` (or `title`) per label for entity resolution by name.
-- No other indexes until a query plan demands one (measure first).
+*Amended 2026-10-13 to distinguish the locked requirement from the shipped
+index.* The requirement is authoritative; the implementation enforces less.
+The gap is recorded as an unresolved product decision below — it is **not** a
+weakening of the requirement.
+
+| Index | Requirement (locked) | Current implementation |
+|---|---|---|
+| `key` per label | **Unique** — one node per `key` (identity) | **Non-unique**: `CREATE INDEX FOR (n:<Label>) ON (n.key)` (`internal/graph/load.go` `Reset`). Duplicate keys are rejected only by the bulk loader's *in-batch* check (`validateNode`) and by single-source seed data — **not** by the database |
+| `name` / `title` per label | index for entity resolution by name | **Not created** today |
+| any other index | none until a query plan demands one (measure first) | none |
+
+**Unresolved product decision (PROPOSED).** Whether to enforce `key`
+uniqueness in the database (a unique constraint/index, if FalkorDB supports
+one) or to accept loader/ingestion-enforced uniqueness. Recorded in
+`OPEN_QUESTIONS.md` and tracked against M1 in `IMPLEMENTATIONPLAN.md` /
+`TRACKER.md`. Until decided, the unique-per-label requirement stands.

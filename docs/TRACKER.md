@@ -1,7 +1,7 @@
 # TRON — Implementation Tracker
 
 **Status**: Canonical. Live status of milestones, components, and backlog.
-**Last updated**: 2026-10-12.
+**Last updated**: 2026-10-13.
 **Related**: [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md),
 [`EVALUATION.md`](EVALUATION.md), [`RULES.md`](RULES.md).
 
@@ -23,8 +23,8 @@
 
 | ID | Milestone | Status | Evidence |
 |---|---|---|---|
-| M0 | Architecture & repository baseline | **Verified** | `tron demo` 6/6; 9 test files; decision-log |
-| M1 | Trustworthy organizational memory | **In progress** | schema/provenance/temporal + fact-write validation exist; no contradiction/staleness surfacing |
+| M0 | Architecture & repository baseline | **Verified** | `tron demo` 6/6; 10 test files; decision-log |
+| M1 | Trustworthy organizational memory | **In progress** | Slice 1: schema/provenance + fact-write contract (`internal/graph/load.go`); **outstanding**: temporal as-of querying, contradiction surfacing, DB-enforced key uniqueness; E1 PARTIAL, E5/E6 PROPOSED |
 | M2 | Data ingestion & synchronization | **Not started** | only `internal/seed` writes facts |
 | M3 | Evidence-grounded reasoning | **In progress** | agent loop + 6 ops + `Answer.Validate`; no LLM provider wired |
 | M4 | Decision support | **Not started** | — |
@@ -47,6 +47,8 @@
 |---|---|---|---|
 | Graph layer | `internal/graph/graph.go` | **Verified** | one global mutex (`ponytail:` ceiling) |
 | Fact-write contract | `internal/graph/load.go` | **Verified** | key shape, provenance minimum, referential integrity, temporal windows; `internal/graph/load_test.go` |
+| Temporal as-of queries | `internal/graph` | **Not started** | windows validated at write; no `as_of` query (`FindOwner` current-only) → E5 PROPOSED |
+| Key uniqueness enforcement | `internal/graph/load.go` | **In progress** | non-unique `key` index; loader in-batch check only; unresolved in `OPEN_QUESTIONS.md` |
 | Entity resolution | `internal/knowledge/resolve.go` | **Verified** | single-source; no cross-source merge |
 | Expertise | `internal/knowledge/expertise.go` | **Verified** | weights unvalidated (R10) |
 | Decision trace | `internal/knowledge/decision.go` | **Verified** | — |
@@ -93,7 +95,7 @@
 | Component | Status | Evidence/Gaps |
 |---|---|---|
 | Go test suites (10 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants |
-| Eval suites E1–E12 | **In progress** | E1/E2/E4/E5 partial; rest planned |
+| Eval suites E1–E12 | **In progress** | E1/E2 PARTIAL, E4 IMPLEMENTED (structural); E5 PROPOSED (as-of absent); E3/E6+ PROPOSED; baselines none |
 | Comparison baselines | **Not started** | keyword search, RAG, tool-LLM |
 | Canonical docs (this set) | **Verified** | `docs/README.md` index |
 

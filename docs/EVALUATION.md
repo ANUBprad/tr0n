@@ -1,10 +1,10 @@
 # TRON — Evaluation & Quality Assurance
 
 **Status**: Canonical. Authority for how TRON measures quality and trust.
-**Last updated**: 2026-10-12.
+**Last updated**: 2026-10-13.
 **Current-state authority**: testing posture in
 [`architecture-minimal.md`](architecture-minimal.md) and the existing Go test
-suites (9 files under `cmd/` and `internal/`).
+suites (10 files under `cmd/` and `internal/`).
 **Related**: [`PRD.md`](PRD.md) §8, [`SCHEMA.md`](SCHEMA.md),
 [`REASONING.md`](REASONING.md), [`ACTIONS.md`](ACTIONS.md),
 [`SECURITY.md`](SECURITY.md), [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md).
@@ -39,7 +39,7 @@ cost/latency — the parts that don't exist yet.
 | E2 | **Multi-hop graph queries** | fixtures answerable only via ≥3 hops | the product thesis, as a test | PARTIAL (seed contract test) |
 | E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PROPOSED |
 | E4 | **Citation support** | answers + their claims | every claim cites a valid path (`Answer.Validate`) | IMPLEMENTED (structural) |
-| E5 | **Temporal accuracy** | time-shifted fixtures (owner 2026 vs 2027) | correct as-of results | PARTIAL |
+| E5 | **Temporal accuracy** | time-shifted fixtures (owner 2026 vs 2027) | correct as-of results | PROPOSED (temporal as-of querying and time-shifted fixtures absent) |
 | E6 | **Contradiction detection** | injected conflicting facts | both surfaced, none hidden | PROPOSED |
 | E7 | **Permission enforcement** | facts with differing scopes | no derived leakage | PROPOSED |
 | E8 | **Recommendation quality** | scenarios rated by humans | useful/correct vs baseline | PROPOSED |
