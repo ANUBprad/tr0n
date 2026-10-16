@@ -112,6 +112,30 @@ have produced two nodes sharing a key.
 |---|---|---|---|---|
 | **Staleness is documented as observed-time; no universal stale threshold is defined** | Freshness already derives from `observed_at` and is returned on every `Provenance` (`internal/knowledge/knowledge.go`); a `valid_to` in the past means *historically expired for that era*, not a stale source. Inventing a threshold would mint a policy no one asked for and mislabel legitimate history (`docs/SCHEMA.md` §5/§6) | Add a configurable stale threshold + stale/not-stale label; add a computed `age` field now; leave staleness entirely for a later slice | No new field or label in v1: consumers see raw `observed_at` and decide. A future freshness policy must be recorded here before any labeling code lands | DECIDED (documented, no threshold) |
 
+## E1 identity-resolution contract audit (2026-10-16)
+
+Adversarial regression suite added: `internal/graph/graph_test.go`
+`TestResolveEntityContract` (9 subtests, live FalkorDB). The audit compared
+`graph.ResolveEntity` against the contract in `docs/SCHEMA.md` §9 and
+`docs/AGENT_SPEC.md` "ResolveEntity", and traced every caller
+(`POST /v1/resolve`, the `resolve_entity` agent tool).
+
+Evidence: stable `key` tier, name/label narrowing, ambiguity → sorted
+candidate list (never a guess), determinism across insertion order,
+idempotent read-only resolution, provenance and E5 temporal windows intact,
+and the loader's cross-load `key` uniqueness guard (`load.go` `LoadNodes`)
+closing the only path to two nodes sharing a key.
+
+| Decision | Why | Alternatives | Tradeoffs / limitations | Status |
+|---|---|---|---|---|
+| **No production change to `ResolveEntity` this slice: the implementation already matches the locked contract** | The four tiers in `docs/SCHEMA.md` §9 are implemented in the specified order, hits are sorted by `key`, a single hit returns `MatchedOn` so callers can tell identity-grade (`key`) from weak-attribute matches, ambiguity returns the full candidate list, and no caller (`api.go` `/v1/resolve`, `agent.go` `resolve_entity`) ever auto-selects `Candidates[0]`. The one path that could have produced two nodes sharing a `key` is already closed by the loader guard | Change the tier order; add a scored/alias tier; refactor the full-graph scan into indexed per-tier lookups | Refactoring or reordering would be an unrequested semantic change, not a fix. The full-scan `ponytail:` ceiling (one label/key/name scan per call) stays until resolution latency is actually measured; upgrade path = per-tier indexed lookups | CONFIRMED (no change needed) |
+| **A key-shaped query string stays eligible for the name/title tiers — the tier-confinement idea is recorded, not implemented** | `ResolveEntity` matches tiers by priority, not by input shape: a string that *looks* like a key but matches no node's `key` legitimately falls through to exact `name`/`title` (a contract-legal tier). The conceivable wrong-identity case — a non-existent key resolving to an unrelated entity via a name/title coincidence — is real but cannot be fixed without a canonical identity-shape decision first | (A) confine `src:id`-shaped input to the `key` tier; (B) adopt a stricter key shape than `keyShapeOK` before doing so; (C) leave the fall-through | `keyShapeOK` (`load.go`) only requires `:` with both sides non-empty, so it cannot distinguish a key from a legitimate colon-containing **title** (`"Adopt: FalkorDB"` is both). Option A regresses exact-title lookups; Option B invents an identity-shape rule. Guessing either way would silently change canonical identity semantics — out of scope for this slice. Options recorded in `docs/OPEN_QUESTIONS.md` "Still open"; current behavior locked by `TestResolveEntityContract/key-shaped_input_still_resolves_by_exact_title` so a future change is deliberate | UNDECIDED — recorded, no change |
+
+The audit also confirmed `LoadNodes` is the only node-creating path in
+production code (`CREATE`/`MERGE` appear nowhere else), so the uniqueness
+guard covers every writer.
+
+
 ## Notes
 New decisions must be added here. Mark as DECIDED only after team consensus during/at hackathon start.
 

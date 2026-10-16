@@ -24,7 +24,7 @@
 | ID | Milestone | Status | Evidence |
 |---|---|---|---|
 | M0 | Architecture & repository baseline | **Verified** | `tron demo` 7/7; 10 test files; decision-log |
-| M1 | Trustworthy organizational memory | **In progress** | Slice 1: schema/provenance + fact-write contract (`internal/graph/load.go`); **slice 2 (2026-10-16)**: E6 contradiction detection (`graph.FindConflicts` + `POST /v1/conflicts`); **slice 3 (2026-10-16)**: E5 temporal as-of — optional `as_of` on `FindOwner`/`FindExperts` + `/v1/owner`/`/v1/experts`, canonical-UTC window normalization, empty-window rejection; **slice 4 (2026-10-16)**: E1 loader cross-load/label duplicate-key guard + runnable identity fixture; staleness **documented** (no threshold); **outstanding**: multi-source identity merge (M2); E1 PARTIAL, E5/E6 IMPLEMENTED |
+| M1 | Trustworthy organizational memory | **In progress** | Slice 1: schema/provenance + fact-write contract (`internal/graph/load.go`); **slice 2 (2026-10-16)**: E6 contradiction detection (`graph.FindConflicts` + `POST /v1/conflicts`); **slice 3 (2026-10-16)**: E5 temporal as-of — optional `as_of` on `FindOwner`/`FindExperts` + `/v1/owner`/`/v1/experts`, canonical-UTC window normalization, empty-window rejection; **slice 4 (2026-10-16)**: E1 loader cross-load/label duplicate-key guard + runnable identity fixture; staleness **documented** (no threshold); **slice 5 (2026-10-16)**: E1 contract audit + adversarial suite (`TestResolveEntityContract`); key-shaped/name-tier ambiguity **recorded, not fixed**; **outstanding**: multi-source identity merge (M2); E1 PARTIAL, E5/E6 IMPLEMENTED |
 | M2 | Data ingestion & synchronization | **Not started** | only `internal/seed` writes facts |
 | M3 | Evidence-grounded reasoning | **In progress** | agent loop + 7 ops + `Answer.Validate`; no LLM provider wired |
 | M4 | Decision support | **Not started** | — |
@@ -49,7 +49,7 @@
 | Fact-write contract | `internal/graph/load.go` | **Verified** | key shape, provenance minimum, referential integrity, temporal windows; `internal/graph/load_test.go` |
 | Temporal as-of queries | `internal/graph` | **Verified** | optional `as_of` on `FindOwner`/`FindExperts` (half-open `valid_from <= as_of < valid_to`); loader normalizes windows to canonical UTC; sentinel default = current; `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC` (2026-10-16) → E5 IMPLEMENTED |
 | Key uniqueness enforcement | `internal/graph/load.go` | **Verified (loader)** | DB-level constraint still **deferred (2026-10-15)**; since 2026-10-16 the loader rejects any batch key already present in the graph (across loads *and* labels), not just in-batch — non-destructive, no merge (`TestDuplicateKeyAcrossLoadsIsRejected`); non-unique index remains; revisit a DB constraint before M2 (`planning/decision-log.md`, `OPEN_QUESTIONS.md`) |
-| Entity resolution | `internal/graph/graph.go` (`ResolveEntity`) | **Verified** | single-source; no cross-source merge (`TestResolveEntity`, `TestDuplicateKeyAcrossLoadsIsRejected`) |
+| Entity resolution | `internal/graph/graph.go` (`ResolveEntity`) | **Verified** | single-source; no cross-source merge (`TestResolveEntity`, adversarial `TestResolveEntityContract`, `TestDuplicateKeyAcrossLoadsIsRejected`) |
 | Expertise | `internal/knowledge/expertise.go` | **Verified** | weights unvalidated (R10) |
 | Decision trace | `internal/knowledge/decision.go` | **Verified** | — |
 | Incidents | `internal/knowledge/incidents.go` | **Verified** | — |
@@ -95,7 +95,7 @@
 | Component | Status | Evidence/Gaps |
 |---|---|---|
 | Go test suites (10 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants |
-| Eval suites E1–E12 | **In progress** | E1/E2 PARTIAL, E4 IMPLEMENTED (structural); E5 **IMPLEMENTED** (2026-10-16: `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`); E6 **IMPLEMENTED** (2026-10-16: `TestFindConflicts`, `TestEndpoints/conflicts`); E3/E7+ PROPOSED; baselines none |
+| Eval suites E1–E12 | **In progress** | E1 PARTIAL (2026-10-16: `TestResolveEntity`, adversarial `TestResolveEntityContract` — recorded key-shaped ambiguity), E2 PARTIAL, E4 IMPLEMENTED (structural); E5 **IMPLEMENTED** (2026-10-16: `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`); E6 **IMPLEMENTED** (2026-10-16: `TestFindConflicts`, `TestEndpoints/conflicts`); E3/E7+ PROPOSED; baselines none |
 | Comparison baselines | **Not started** | keyword search, RAG, tool-LLM |
 | Canonical docs (this set) | **Verified** | `docs/README.md` index |
 

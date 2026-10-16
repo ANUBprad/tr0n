@@ -35,7 +35,7 @@ cost/latency — the parts that don't exist yet.
 
 | # | Suite | Fixture (labeled) | What it proves | Status |
 |---|---|---|---|---|
-| E1 | **Entity resolution** | pairs of records known to be same/different | merge correctness, no false merges | PARTIAL (2026-10-16: deterministic tiers `TestResolveEntity`; loader rejects cross-load/label duplicate keys `TestDuplicateKeyAcrossLoadsIsRejected`; multi-source merge deferred to M2) |
+| E1 | **Entity resolution** | pairs of records known to be same/different | merge correctness, no false merges | PARTIAL (2026-10-16: deterministic tiers `TestResolveEntity`; adversarial contract suite `TestResolveEntityContract`; loader rejects cross-load/label duplicate keys `TestDuplicateKeyAcrossLoadsIsRejected`; multi-source merge deferred to M2) |
 | E2 | **Multi-hop graph queries** | fixtures answerable only via ≥3 hops | the product thesis, as a test | PARTIAL (seed contract test) |
 | E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PROPOSED |
 | E4 | **Citation support** | answers + their claims | every claim cites a valid path (`Answer.Validate`) | IMPLEMENTED (structural) |
@@ -128,6 +128,21 @@ correctness needs a second source). What is runnable and locked now
   (`TestDuplicateKeyAcrossLoadsIsRejected`). This is application-level
   enforcement of the requirement; the DB-level constraint stays deferred
   (2026-10-15) — no merge, no rewrite, no provenance loss.
+- adversarial contract suite `TestResolveEntityContract` (9 subtests, live
+  FalkorDB): stable `key` evidence vs weak `name`/`title`, label/kind
+  narrowing, no auto-select of a candidate, determinism across graph
+  insertion order, idempotent read-only resolution, and provenance + E5
+  temporal windows surviving resolution unchanged;
+- no caller creates or merges nodes without strong identity evidence:
+  `LoadNodes` is the only node-creating path in production code, and no
+  caller of `ResolveEntity` (`/v1/resolve`, `resolve_entity`) ever picks
+  `Candidates[0]`;
+- the one identified risk — a key-shaped string that misses its `key` still
+  resolving via an exact name/title coincidence — is **recorded, not fixed**
+  (`OPEN_QUESTIONS.md`, `decision-log.md` 2026-10-16): `keyShapeOK` cannot
+  separate a key from a colon-containing title, so tightening it would change
+  canonical identity semantics. Current behavior is locked by
+  `TestResolveEntityContract/key-shaped_input_still_resolves_by_exact_title`.
 
 Staleness is **not** a suite: freshness is `observed_at`-based and already
 returned on every `Provenance`; no stale threshold or label is defined
