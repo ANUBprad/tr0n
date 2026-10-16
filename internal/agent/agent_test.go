@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ANUBprad/tr0n/internal/graph"
+	"github.com/ANUBprad/tr0n/internal/knowledge"
 	"github.com/ANUBprad/tr0n/internal/seed"
 )
 
@@ -161,8 +162,8 @@ func TestToolsAgainstSeededGraph(t *testing.T) {
 	}
 
 	tools := Tools(c)
-	if len(tools) != 6 {
-		t.Fatalf("want 6 tools, got %d", len(tools))
+	if len(tools) != 7 {
+		t.Fatalf("want 7 tools, got %d", len(tools))
 	}
 
 	s := New(DefaultSystem, tools)
@@ -216,6 +217,129 @@ func TestToolsAgainstSeededGraph(t *testing.T) {
 		}
 		if s.Answer() == "" {
 			t.Error("model must still be able to answer after tool errors")
+		}
+	})
+}
+
+// M3 context assembly through the narrowest seam: the loop's existing
+// tool map. The retrieved facts carry provenance back through the
+// transcript, bounds are reported rather than implied, an unknown entity
+// is an explicit not_found (never a guess), and a fact from the context
+// can back a Claim path that passes knowledge.Answer.Validate — the
+// answer-validation path the reasoning layer already runs.
+func TestAssembleContextToolSuppliesEvidence(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test needs FalkorDB; use -short to skip")
+	}
+	addr := getenv("TRON_FALKOR_ADDR", "localhost:6379")
+	c, err := graph.New(addr, "tron_agent_ctx_test")
+	if err != nil {
+		t.Fatalf("falkordb unreachable at %s — run `docker compose up -d`: %v", addr, err)
+	}
+	t.Cleanup(func() { c.Delete(); c.Close() })
+	if _, err := seed.Load(c); err != nil {
+		t.Fatalf("seed load: %v", err)
+	}
+
+	tools := Tools(c)
+	s := New(DefaultSystem, tools)
+	err = s.Run(context.Background(), scripted(
+		Decision{Calls: []Call{{Name: "assemble_context", Args: json.RawMessage(
+			`{"entity":"payments-api","relations":["OWNS"]}`)}}},
+		Decision{Answer: "context retrieved"},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	turns := s.Turns()
+	if len(turns) != 1 || turns[0].Err != "" {
+		t.Fatalf("turns: %+v", turns)
+	}
+	blob, _ := json.Marshal(turns[0].Result)
+	for _, want := range []string{`"status":"ok"`, `"relation":"OWNS"`, `"src_type"`, `"valid_from"`} {
+		if !strings.Contains(string(blob), want) {
+			t.Errorf("evidence context missing %s: %s", want, blob)
+		}
+	}
+
+	var ctx graph.EvidenceContext
+	if err := json.Unmarshal(blob, &ctx); err != nil {
+		t.Fatalf("decode context: %v", err)
+	}
+	if ctx.Entity == nil || ctx.Status != graph.EvidenceStatusOK {
+		t.Fatalf("expected a resolved entity with facts, got %+v", ctx)
+	}
+	if len(ctx.Facts) > ctx.Limit {
+		t.Errorf("facts %d exceed limit %d", len(ctx.Facts), ctx.Limit)
+	}
+	// Direction-correct fact path → the answer-validation path.
+	f := ctx.Facts[0]
+	path := fmt.Sprintf("(:%s %s)-[:%s]->(:%s %s)",
+		ctx.Entity.Label, ctx.Entity.Key, f.Relation, f.Neighbor.Label, f.Neighbor.Key)
+	if f.Direction == "in" {
+		path = fmt.Sprintf("(:%s %s)-[:%s]->(:%s %s)",
+			f.Neighbor.Label, f.Neighbor.Key, f.Relation, ctx.Entity.Label, ctx.Entity.Key)
+	}
+	ans := knowledge.Answer{
+		Question: "Who owns payments-api?",
+		Answer:   "person:1 owns payments-api.",
+		Layer:    knowledge.LayerFact,
+		Claims: []knowledge.Claim{{
+			Text:  "person:1 owns payments-api",
+			Layer: knowledge.LayerFact,
+			Paths: []string{path},
+		}},
+		OperationsUsed: []string{"assemble_context"},
+	}
+	if err := ans.Validate(); err != nil {
+		t.Errorf("retrieved evidence must satisfy Answer.Validate: %v", err)
+	}
+
+	t.Run("unknown entity is an explicit not_found", func(t *testing.T) {
+		s := New(DefaultSystem, tools)
+		if err := s.Run(context.Background(), scripted(
+			Decision{Calls: []Call{{Name: "assemble_context", Args: json.RawMessage(`{"entity":"definitely-not-a-service"}`)}}},
+			Decision{Answer: "nothing found"},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		blob, _ := json.Marshal(s.Turns()[0].Result)
+		if !strings.Contains(string(blob), `"status":"not_found"`) {
+			t.Errorf("unknown entity must be explicit: %s", blob)
+		}
+		if len(s.Turns()[0].Err) != 0 {
+			t.Errorf("not_found is a result, not an error: %s", s.Turns()[0].Err)
+		}
+	})
+
+	t.Run("count bound is reported through the loop", func(t *testing.T) {
+		s := New(DefaultSystem, tools)
+		if err := s.Run(context.Background(), scripted(
+			Decision{Calls: []Call{{Name: "assemble_context", Args: json.RawMessage(`{"entity":"payments-api","limit":1}`)}}},
+			Decision{Answer: "bounded"},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		var ctx graph.EvidenceContext
+		blob, _ := json.Marshal(s.Turns()[0].Result)
+		if err := json.Unmarshal(blob, &ctx); err != nil {
+			t.Fatal(err)
+		}
+		if !ctx.Truncated || ctx.TruncatedReason == "" || len(ctx.Facts) != 1 {
+			t.Errorf("truncation must be explicit: %+v", ctx)
+		}
+	})
+
+	t.Run("missing required entity is a turn error", func(t *testing.T) {
+		s := New(DefaultSystem, tools)
+		if err := s.Run(context.Background(), scripted(
+			Decision{Calls: []Call{{Name: "assemble_context", Args: json.RawMessage(`{}`)}}},
+			Decision{Answer: "recovered"},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(s.Turns()[0].Err, "entity is required") {
+			t.Errorf("missing entity must error the turn: %q", s.Turns()[0].Err)
 		}
 	})
 }

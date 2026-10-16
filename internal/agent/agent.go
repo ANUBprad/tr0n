@@ -212,6 +212,32 @@ func Tools(c *graph.Client) map[string]Tool {
 				return c.TraceEvidence(req.Keys)
 			},
 		},
+		"assemble_context": {
+			Description: "Retrieve a bounded, provenance-bearing evidence context for one entity: resolve the name (returns candidates instead of guessing when ambiguous), follow that entity's edges, optionally scope to relationship types and to an as_of instant under the half-open rule. Reports truncation explicitly when a bound bites; read-only.",
+			Params:      `{"type":"object","required":["entity"],"properties":{"entity":{"type":"string"},"label":{"type":"string"},"as_of":{"type":"string","description":"RFC3339 instant"},"relations":{"type":"array","items":{"type":"string"}},"limit":{"type":"integer"},"max_bytes":{"type":"integer"}}}`,
+			Exec: func(ctx context.Context, args json.RawMessage) (interface{}, error) {
+				entity := str(args, "entity")
+				if entity == "" {
+					return nil, fmt.Errorf("entity is required")
+				}
+				var req struct {
+					Label     string   `json:"label"`
+					AsOf      string   `json:"as_of"`
+					Relations []string `json:"relations"`
+					Limit     int      `json:"limit"`
+					MaxBytes  int      `json:"max_bytes"`
+				}
+				json.Unmarshal(args, &req)
+				return c.AssembleEvidence(graph.EvidenceRequest{
+					Entity:    entity,
+					Label:     req.Label,
+					AsOf:      req.AsOf,
+					Relations: req.Relations,
+					Limit:     req.Limit,
+					MaxBytes:  req.MaxBytes,
+				})
+			},
+		},
 		"resolve_entity": {
 			Description: "Resolve a free-text name to a graph key (exact key, exact name, case-insensitive, prefix). Returns the key or a candidate list - never a guess.",
 			Params:      `{"type":"object","required":["name"],"properties":{"name":{"type":"string"},"label":{"type":"string"}}}`,
