@@ -5,6 +5,8 @@ future work. One home for all tool contracts — referenced by
 `architecture-minimal.md`. Amended 2026-10-15: `FindConflicts` added as a
 **PROPOSED** operation (decided expansion of the boundary, see below and
 `planning/decision-log.md`); **implemented 2026-10-16** (E6 v1).
+Amended 2026-10-16: source-grounded answer contract (`graph.GroundedAnswer`)
+added under "Answer structure".
 
 ## Principle
 
@@ -220,6 +222,20 @@ relations only; `OWNS` is the sole exclusive relation.
 Every claim is individually tagged and individually backed. An untagged,
 unevidenced claim must not be renderable — enforced by the response type,
 not by reviewer vigilance.
+
+**Source-grounded contract (implemented 2026-10-16).** The structured carrier
+for "individually backed" now exists: `graph.GroundedAnswer`
+(`internal/graph/grounded.go`) couples a `knowledge.Answer` with the
+`EvidenceContext` it was built from and a `ClaimGrounding` per claim naming the
+claim's subject entity, the relationship (when asserted), and the IDs of the
+supporting `EvidenceFact`s. `EvidenceFact.ID` is a stable, content-derived
+identifier. `GroundedAnswer.Validate` requires every FACT claim to cite a
+carried fact that matches its subject/relationship, and refuses any FACT claim
+on a non-`ok` context (`not_found`/`ambiguous`/`empty`/`over_budget`); INFERENCE
+claims keep their own `rule_id`/path discipline. This proves *structural*
+linkage, not entailment — E3 stays PARTIAL (`EVALUATION.md` §2.5). `knowledge.Answer`,
+`Claim`, and `Validate` are unchanged, so this is an additive envelope, not a
+schema change.
 
 ## Why the LLM alone cannot do this
 

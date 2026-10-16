@@ -192,6 +192,32 @@ no path fails `Answer.Validate`, so zero-fact contexts cannot back one. The
 scripted-model tests prove tool behavior and transcript flow only; end-to-end
 grounding (E3) remains PROPOSED.
 
+## E3 source-grounded answer contract (2026-10-16)
+
+Resolves the open question "How should a `knowledge.Answer` carry structured
+per-fact provenance from context assembly?" (`docs/OPEN_QUESTIONS.md`). The M3
+audit above left the string-path bridge in place: `knowledge.Answer.Validate`
+only checks that a claim has at least one non-empty path, so a claim can cite a
+plausible-looking path that matches no retrieved fact. This slice adds and tests
+a contract that binds a claim to the *actual* retrieved evidence.
+
+| Decision | Why | Alternatives | Tradeoffs / limitations | Status |
+|---|---|---|---|---|
+| **Option C — an additive `graph.GroundedAnswer` envelope (chosen over A and B)** | It is the only option that carries the real retrieval result next to the answer, so grounding is *checkable* without an import cycle or an out-of-band lookup. `knowledge.Answer`, `Claim`, and `Validate` are untouched, so every composer (`internal/ui/ui.go`), the API schema, and the agent bridge stay compatible | **A** extend `knowledge.Claim` with structured provenance — rejected: `internal/knowledge` cannot import `internal/graph` (`graph` imports `knowledge`; the reverse is a cycle), so it would need a `knowledge`-level duplicate of `graph.EvidenceFact`; it changes a type used at ~40 sites, and if left additive it still cannot verify a reference without the retrieval result, leaving the fake-path hole open. **B** keep `Claim.Paths` and link to `EvidenceContext` out of band — rejected: the link would be by path string (reconstructing provenance from display strings, exactly what this slice must stop) and cannot reliably reject unrelated evidence | Grounding metadata is a slice parallel to `Answer.Claims` (index-aligned, length-checked); the envelope lives in `internal/graph` (already imports `knowledge`) rather than a new `internal/reason` package (does not exist) — movable if the reasoning layer ever earns its own package | DECIDED |
+| **`graph.EvidenceFact` gains a stable, content-derived `id`** | A claim must cite specific evidence identically across runs and a JSON round trip; a positional index drifts if facts are reordered or a subset is carried. The id is FNV-1a over the fact's own identifying fields (anchor, relation, direction, neighbour, window, source), so the same fact always hashes the same and two genuinely identical facts share it (they *are* the same fact) | Reference by slice index; re-state the fact's coordinates in the claim | One additive JSON field. It counts toward `bytes`/`max_bytes` exactly like any other field (size is computed from the marshalled fact, so bounds stay honest); existing deterministic-order and substring assertions still hold because the id is deterministic | DECIDED |
+| **`GroundedAnswer.Validate` requires every FACT claim to cite ≥1 *known* fact whose anchor and (when declared) relationship match, and refuses any FACT claim when the evidence status is not `ok`** | The core goal: a FACT claim cannot cite fabricated/unknown evidence, evidence anchored to another entity, or evidence of a different relationship; and `not_found`/`ambiguous`/`empty`/`over_budget` can never be laundered into a supported factual claim. INFERENCE/RECOMMENDATION keep their existing `rule_id`/path discipline and are not required to be fact-grounded | Let a FACT claim cite any path string (the old hole); treat every non-`ok` status the same (no distinction) | **Absence** claims ("no `OWNS` edge") have no `EvidenceFact` to cite, so this contract cannot ground them (documented ceiling); they keep the existing operation-reference string path. The contract proves *structural* linkage, not factual correctness (E3 stays PARTIAL) | DECIDED |
+| **Truncation and non-`ok` outcomes are carried verbatim, never re-derived or flattened** | "Never silently imply a partial result is exhaustive" (`REASONING.md` §2): the envelope preserves the context's `status`/`truncated`/`truncated_reason` unchanged. A truncated-but-`ok` context still validates — it was partial and says so | Recompute or drop the status inside the answer; add an explicit "complete" claim | A consumer must read the context, not just the claims; the contract adds no completeness assertion of its own | DECIDED |
+
+Evidence: `internal/graph/grounded.go` (`GroundedAnswer`, `ClaimGrounding`,
+`Validate`), `internal/graph/evidence.go` (`EvidenceFact.ID`, `evidenceFactID`),
+`internal/graph/grounded_test.go` (unit: fabricated id, wrong relation, wrong
+entity, missing evidence, non-`ok` status, JSON round trip; live: real-FalkorDB
+provenance preservation, explicit outcomes, truncation). `knowledge.Answer`,
+`Claim`, `Validate`, and all their callers are unchanged. E3 remains **PARTIAL**:
+structural grounding is proven; factual correctness/entailment needs a wired
+answering model and a labeled Q/A corpus, neither of which exists
+(`docs/EVALUATION.md` §6).
+
 ## Notes
 New decisions must be added here. Mark as DECIDED only after team consensus during/at hackathon start.
 

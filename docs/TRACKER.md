@@ -1,7 +1,7 @@
 # TRON — Implementation Tracker
 
 **Status**: Canonical. Live status of milestones, components, and backlog.
-**Last updated**: 2026-10-15.
+**Last updated**: 2026-10-16.
 **Related**: [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md),
 [`EVALUATION.md`](EVALUATION.md), [`RULES.md`](RULES.md).
 
@@ -23,10 +23,10 @@
 
 | ID | Milestone | Status | Evidence |
 |---|---|---|---|
-| M0 | Architecture & repository baseline | **Verified** | `tron demo` 7/7; 10 test files; decision-log |
+| M0 | Architecture & repository baseline | **Verified** | `tron demo` 7/7; 12 test files; decision-log |
 | M1 | Trustworthy organizational memory | **In progress** | Slice 1: schema/provenance + fact-write contract (`internal/graph/load.go`); **slice 2 (2026-10-16)**: E6 contradiction detection (`graph.FindConflicts` + `POST /v1/conflicts`); **slice 3 (2026-10-16)**: E5 temporal as-of — optional `as_of` on `FindOwner`/`FindExperts` + `/v1/owner`/`/v1/experts`, canonical-UTC window normalization, empty-window rejection; **slice 4 (2026-10-16)**: E1 loader cross-load/label duplicate-key guard + runnable identity fixture; staleness **documented** (no threshold); **slice 5 (2026-10-16)**: E1 contract audit + adversarial suite (`TestResolveEntityContract`); key-shaped/name-tier ambiguity **recorded, not fixed**; **outstanding**: multi-source identity merge (M2); E1 PARTIAL, E5/E6 IMPLEMENTED |
 | M2 | Data ingestion & synchronization | **Not started** | only `internal/seed` writes facts |
-| M3 | Evidence-grounded reasoning | **In progress** | agent loop + 7 ops + `graph.AssembleEvidence` (bounded context assembly) + `Answer.Validate`; no LLM provider wired |
+| M3 | Evidence-grounded reasoning | **In progress** | agent loop + 7 ops + `graph.AssembleEvidence` (bounded context assembly) + `Answer.Validate`; **source-grounded contract (2026-10-16)**: `graph.GroundedAnswer` binds an answer's FACT claims to cited `EvidenceFact` IDs (stable content-derived id), refuses fabricated/cross-entity/cross-relation citations and any FACT claim on a non-`ok` context; `internal/graph/grounded.go` + `grounded_test.go`; no LLM provider wired |
 | M4 | Decision support | **Not started** | — |
 | M5 | Controlled action execution | **Not started** | read-only today |
 | M6 | Proactive organizational intelligence | **Not started** | — |
@@ -61,6 +61,7 @@
 |---|---|---|---|
 | Agent loop + tool schema | `internal/agent/agent.go` | **Implemented** | no provider adapter |
 | Answer validation / layering | `internal/agent`, `internal/knowledge` | **Verified** | — |
+| Source-grounded answer contract | `internal/graph/grounded.go` | **Verified** | 2026-10-16: `GroundedAnswer` + stable `EvidenceFact.ID`; a FACT claim must cite a carried fact matching its subject/relation, and a non-`ok` context (`not_found`/`ambiguous`/`empty`/`over_budget`) can never back one; `TestGroundedAnswer*`; **structural only** — no entailment/correctness check, absence claims ungrounded (documented) |
 | LLM provider adapter | — | **Not started** | M3; ADR required |
 | Retrieval/context assembly | `internal/graph/evidence.go` | **Implemented** | M3, 2026-10-16: `AssembleEvidence` + `assemble_context` tool — resolve (never picks among candidates), 1-hop edges scoped to optional relations, half-open `as_of` filter on state relations, **total** store-independent sort, count/size bounds, explicit truncation + explicit `not_found`/`ambiguous`/`empty`/`over_budget`; audited 2026-10-16 (over-budget outcome + total order fixed); permission-aware drop + relevance/recency ranking still PROPOSED |
 | Rules engine | — | **Not started** | M4 |
@@ -94,8 +95,8 @@
 ### Evaluation & docs
 | Component | Status | Evidence/Gaps |
 |---|---|---|
-| Go test suites (11 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants; M3 `evidence_test.go` (relevance/no-leak, provenance/windows, half-open `as_of` incl. boundary neighbours + offset-equivalent instants, explicit outcomes incl. `over_budget`, count/size bounds incl. unsatisfiable budget, malformed stored window, total store-order independence) |
-| Eval suites E1–E12 | **In progress** | E1 PARTIAL (2026-10-16: `TestResolveEntity`, adversarial `TestResolveEntityContract` — recorded key-shaped ambiguity), E2 PARTIAL, E4 IMPLEMENTED (structural); E5 **IMPLEMENTED** (2026-10-16: `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`); E6 **IMPLEMENTED** (2026-10-16: `TestFindConflicts`, `TestEndpoints/conflicts`); M3 retrieval/context assembly **IMPLEMENTED** (2026-10-16, EVALUATION §2.4: `TestAssembleEvidence*`, `TestAssembleContextToolSuppliesEvidence`); E3/E7+ PROPOSED; baselines none |
+| Go test suites (12 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants; M3 `evidence_test.go` (relevance/no-leak, provenance/windows, half-open `as_of` incl. boundary neighbours + offset-equivalent instants, explicit outcomes incl. `over_budget`, count/size bounds incl. unsatisfiable budget, malformed stored window, total store-order independence); E3 `grounded_test.go` (citation of real evidence, fabricated/cross-entity/cross-relation/missing-evidence rejection, non-`ok` statuses, truncation, JSON round trip) |
+| Eval suites E1–E12 | **In progress** | E1 PARTIAL (2026-10-16: `TestResolveEntity`, adversarial `TestResolveEntityContract` — recorded key-shaped ambiguity), E2 PARTIAL, E4 IMPLEMENTED (structural); E5 **IMPLEMENTED** (2026-10-16: `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`); E6 **IMPLEMENTED** (2026-10-16: `TestFindConflicts`, `TestEndpoints/conflicts`); M3 retrieval/context assembly **IMPLEMENTED** (2026-10-16, EVALUATION §2.4: `TestAssembleEvidence*`, `TestAssembleContextToolSuppliesEvidence`); E3 **PARTIAL** (2026-10-16, EVALUATION §2.5: structural grounding — `TestGroundedAnswer*`; factual correctness needs a model + labeled corpus); E7+ PROPOSED; baselines none |
 | Comparison baselines | **Not started** | keyword search, RAG, tool-LLM |
 | Canonical docs (this set) | **Verified** | `docs/README.md` index |
 

@@ -173,7 +173,7 @@ implementation to the target organizational brain.
 - **Objective / value**: Open-ended, natural-language questions answered with
   citations, abstention, and contradiction handling.
 - **Reuse**: agent loop + `Decide` seam, the deterministic graph ops (incl. `graph.AssembleEvidence`), `Answer.Validate`.
-- **Gaps**: wire **one** LLM provider adapter; context assembly **retrieval half landed 2026-10-16** (`AssembleEvidence`, `assemble_context` tool) — permission-aware filtering and relevance/recency ranking still PROPOSED; contradiction
+- **Gaps**: wire **one** LLM provider adapter; context assembly **retrieval half landed 2026-10-16** (`AssembleEvidence`, `assemble_context` tool) and the **structural source-grounded contract landed 2026-10-16** (`graph.GroundedAnswer`, E3 PARTIAL — linkage only, no entailment) — permission-aware filtering, relevance/recency ranking, and factual-correctness evaluation (needs a labeled corpus) still PROPOSED; contradiction
   and uncertainty rendering; abstention gate; `POST /v1/ask`.
 - **Dependencies**: M2 (real data) and the ADR for the provider (RULES §4).
 - **Files**: `internal/agent` (adapter), **new** `internal/reason`;

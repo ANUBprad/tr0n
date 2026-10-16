@@ -1,10 +1,10 @@
 # TRON — Evaluation & Quality Assurance
 
 **Status**: Canonical. Authority for how TRON measures quality and trust.
-**Last updated**: 2026-10-15.
+**Last updated**: 2026-10-16.
 **Current-state authority**: testing posture in
 [`architecture-minimal.md`](architecture-minimal.md) and the existing Go test
-suites (10 files under `cmd/` and `internal/`).
+suites (12 files under `cmd/` and `internal/`).
 **Related**: [`PRD.md`](PRD.md) §8, [`SCHEMA.md`](SCHEMA.md),
 [`REASONING.md`](REASONING.md), [`ACTIONS.md`](ACTIONS.md),
 [`SECURITY.md`](SECURITY.md), [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md).
@@ -37,7 +37,7 @@ cost/latency — the parts that don't exist yet.
 |---|---|---|---|---|
 | E1 | **Entity resolution** | pairs of records known to be same/different | merge correctness, no false merges | PARTIAL (2026-10-16: deterministic tiers `TestResolveEntity`; adversarial contract suite `TestResolveEntityContract`; loader rejects cross-load/label duplicate keys `TestDuplicateKeyAcrossLoadsIsRejected`; multi-source merge deferred to M2) |
 | E2 | **Multi-hop graph queries** | fixtures answerable only via ≥3 hops | the product thesis, as a test | PARTIAL (seed contract test) |
-| E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PROPOSED |
+| E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PARTIAL (2026-10-16: structural claim-to-source linkage proven — `TestGroundedAnswer*`; factual correctness/entailment still needs a wired model + labeled corpus, see §6) |
 | E4 | **Citation support** | answers + their claims | every claim cites a valid path (`Answer.Validate`) | IMPLEMENTED (structural) |
 | E5 | **Temporal accuracy** | time-shifted fixtures (owner 2026 vs 2027) | correct as-of results | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindOwnerAsOf`/`TestFindExpertsAsOf`, `internal/graph` `TestLoadEdgesNormalizesOffsetToUTC`, `internal/api` `TestEndpoints/owner`+`/experts`, seed handoff fixture; see §2.2 |
 | E6 | **Contradiction detection** | injected conflicting state-relation claims (overlapping half-open windows) + non-conflicting decoys | both surfaced, none hidden; nothing extra flagged | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindConflicts`, `internal/api` `TestEndpoints/conflicts`; scope decided 2026-10-15, see §2.1 |
@@ -50,7 +50,8 @@ cost/latency — the parts that don't exist yet.
 
 **Note (2026-10-16)**: M3 retrieval / context assembly is implemented and tested
 (§2.4). It is the evidence-selection precondition for E3/E4 and does not by
-itself change their status (no Q/A grounding or answer rendering yet).
+itself change their status; the separate E3 grounding contract (§2.5) moves E3
+to PARTIAL (structural linkage only).
 
 ### 2.1 E6 scope and v1 checklist (decided 2026-10-15; implemented 2026-10-16)
 
@@ -191,8 +192,8 @@ End-to-end integration: `internal/agent`
 `TestAssembleContextToolSuppliesEvidence` drives the loop with the
 `assemble_context` tool, asserts bounded/provenanced facts reach the transcript,
 and builds a `knowledge.Answer` claim from a returned fact path whose
-`Validate()` passes — the string-path bridge to the answer layer (structured
-provenance in an answer is an open question; see `OPEN_QUESTIONS.md`). Its
+`Validate()` passes — the string-path bridge to the answer layer (superseded by
+the structural grounding contract in §2.5). Its
 subtests also drive the explicit outcomes and bounds **through the loop**:
 unknown entity → `not_found`; resolved-but-no-in-scope-fact → `empty`; unknown
 relation filter → `empty`; malformed `as_of` → turn error; unsatisfiable byte
@@ -200,7 +201,57 @@ bound → `over_budget`; ambiguous name → candidates and no pick; missing
 `entity` → turn error; count bound reported. The scripted model is
 predetermined, so these prove **tool behavior and transcript flow**, not that a
 real model refrains from unsupported claims — end-to-end grounding (E3) stays
-PROPOSED.
+PARTIAL (structural only; see §2.5).
+
+### 2.5 E3 source-grounded answer contract (implemented 2026-10-16)
+
+`graph.GroundedAnswer` (`internal/graph/grounded.go`) binds a `knowledge.Answer`
+to the `EvidenceContext` it was built from: each claim's `ClaimGrounding` names
+the subject entity, the relationship (when asserted), and the IDs of the
+retrieved `EvidenceFact`s that support it. `EvidenceFact.ID` is a stable,
+content-derived identifier, so a citation targets a specific fact rather than a
+position. `GroundedAnswer.Validate` runs `knowledge.Answer.Validate` first and
+then checks the linkage. `knowledge.Answer`/`Claim`/`Validate` are **unchanged**,
+so every existing composer, API response, and the agent bridge stay compatible.
+
+**What this proves (structural grounding)** — `internal/graph` `grounded_test.go`
+(`TestGroundedAnswer*`; the pure cases run under `-short`, the retrieval cases
+are skipped under `-short`):
+
+- **Valid citation**: an answer built from a real `AssembleEvidence` result — a
+  fact cited by its ID — validates, and the fact's structured provenance
+  (`src_*`, `valid_from`/`valid_to`) is preserved verbatim in the envelope and
+  across a JSON round trip (`TestGroundedAnswerValidate/association_survives_a_JSON_round_trip`,
+  `TestGroundedAnswerFromRetrieval`);
+- **Fabricated / unknown reference rejected**:
+  `.../fabricated_evidence_id_is_rejected`;
+- **Evidence for another relationship or entity rejected**: a fact of a
+  different `relation`, or anchored to a different entity than the claim's
+  subject, cannot support the claim
+  (`.../evidence_of_a_different_relationship_is_rejected`,
+  `.../evidence_anchored_to_another_entity_is_rejected`);
+- **Missing evidence rejected**: a FACT claim citing no fact, or no subject, and
+  a grounding/claims length mismatch, all fail
+  (`.../a_FACT_claim_citing_no_evidence_is_rejected`,
+  `.../a_FACT_claim_with_no_subject_is_rejected`, `.../grounding_and_claims_must_align`);
+- **Explicit outcomes cannot become FACT claims**: `not_found`, `ambiguous`,
+  `empty`, and `over_budget` are each distinguishable and each refused as
+  backing for a FACT claim (`TestGroundedAnswerExplicitOutcomes`); INFERENCE
+  claims keep their own `rule_id`/path discipline and are not fact-grounded;
+- **Truncation preserved, not exhaustive**: a truncated-but-`ok` context still
+  validates and the `truncated` / `truncated_reason` are carried unchanged
+  (`TestGroundedAnswerPreservesTruncation`);
+- **Deterministic citability**: the same fact has the same ID on every retrieval
+  (`TestGroundedAnswerFromRetrieval`).
+
+**What this does NOT prove (and why E3 stays PARTIAL)** — the contract tests that
+a claim's cited evidence *exists* and *matches* the claim; it does not test that
+the claim's text is *entailed* by that evidence, nor that an answer is factually
+correct. That needs a wired answering model and a labeled Q/A corpus
+(§6), neither of which exists. A valid evidence reference is a necessary
+precondition, not sufficient grounding. **Absence** claims ("no `OWNS` edge")
+have no `EvidenceFact` to cite and remain outside the contract (operation-
+reference string path); recorded in `OPEN_QUESTIONS.md`.
 
 ## 3. Baselines and comparison
 
