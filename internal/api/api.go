@@ -21,8 +21,10 @@ import (
 // headroom while still bounding memory per request.
 const maxBodyBytes = 1 << 20
 
-// Handler wires the six endpoints. The graph client is shared across
-// requests: falkordb-go issues stateless commands on a go-redis pool.
+// Handler wires the seven read endpoints (six shipped ops + the E6
+// FindConflicts exposure, docs/AGENT_SPEC.md). The graph client is
+// shared across requests: falkordb-go issues stateless commands on a
+// go-redis pool.
 // ponytail: if pooling ever misbehaves under concurrency, upgrade path
 // is a per-request client — the handler signatures do not change.
 func Handler(c *graph.Client) http.Handler {
@@ -159,6 +161,26 @@ func Handler(c *graph.Client) http.Handler {
 			return
 		}
 		res, err := c.ResolveEntity(req.Name, req.Label)
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		write(w, http.StatusOK, res)
+	})
+
+	mux.HandleFunc("POST /v1/conflicts", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Relation string `json:"relation"`
+			Key      string `json:"key"`
+		}
+		if !decode(w, r, &req) {
+			return
+		}
+		if req.Relation != "" && !graph.IsStateRelation(req.Relation) {
+			badRequest(w, "relation must be a state relation: WORKS_IN, OWNS, WORKED_ON, HAS_REPO, DEPENDS_ON")
+			return
+		}
+		res, err := c.FindConflicts(req.Relation, req.Key)
 		if err != nil {
 			serverError(w, err)
 			return

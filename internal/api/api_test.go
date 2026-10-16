@@ -154,6 +154,43 @@ func TestEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("conflicts", func(t *testing.T) {
+		// Baseline: the shipped seed has no contradictory state claims.
+		res := post(t, "/v1/conflicts", `{}`, http.StatusOK)
+		if res["layer"] != "INFERENCE" || res["rule_id"] != "contradiction/v1" {
+			t.Errorf("tagging: %v", res)
+		}
+		if confs, _ := res["conflicts"].([]interface{}); len(confs) != 0 {
+			t.Fatalf("baseline seed must have zero conflicts, got %v", confs)
+		}
+		// Inject one conflicting OWNS claim: person:1 already owns
+		// payments-api, person:2 claims it over an overlapping window.
+		if err := c.LoadEdges("OWNS", []graph.EdgeRow{{
+			From: "person:2", To: "service:payments-api",
+			Props: map[string]interface{}{
+				"src_type": "service_registry", "src_ref": "test/conflict",
+				"observed_at": "2026-10-01T00:00:00Z", "extraction": "deterministic",
+				"valid_from": "2026-01-01T00:00:00Z",
+			},
+		}}); err != nil {
+			t.Fatalf("inject conflict: %v", err)
+		}
+		flagged := post(t, "/v1/conflicts", `{}`, http.StatusOK)
+		confs, _ := flagged["conflicts"].([]interface{})
+		if len(confs) != 1 {
+			t.Fatalf("want 1 conflict, got %v", confs)
+		}
+		g := confs[0].(map[string]interface{})
+		if g["relation"] != "OWNS" || g["slot"] != "service:payments-api" {
+			t.Errorf("group: %v", g)
+		}
+		if edges, _ := g["edges"].([]interface{}); len(edges) != 2 {
+			t.Errorf("both claimants must surface: %v", g["edges"])
+		}
+		// A non-state relation filter is a client error, not a 500.
+		post(t, "/v1/conflicts", `{"relation":"KNOWS"}`, http.StatusBadRequest)
+	})
+
 	t.Run("body hardening", func(t *testing.T) {
 		// valid JSON with trailing whitespace still succeeds
 		postList(t, "/v1/owner", `{"target":"payments-api"}   `, http.StatusOK)
