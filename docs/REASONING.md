@@ -2,7 +2,7 @@
 
 **Status**: Canonical. Authority for how TRON turns memory into grounded
 answers, explanations, and recommendations.
-**Last updated**: 2026-10-15.
+**Last updated**: 2026-10-16.
 **Current-state authority**: [`AGENT_SPEC.md`](AGENT_SPEC.md) (locked
 operation boundary + agent seam) and [`architecture-minimal.md`](architecture-minimal.md).
 **Related**: [`SCHEMA.md`](SCHEMA.md), [`INGESTION.md`](INGESTION.md),
@@ -13,8 +13,9 @@ operation boundary + agent seam) and [`architecture-minimal.md`](architecture-mi
 > composers exist (`internal/graph`, `internal/ui`). The agent loop exists as a
 > provider-agnostic seam with **no LLM wired** (`internal/agent/agent.go`).
 > Option comparison and planning are **PROPOSED**; contradiction detection ships
-> as `FindConflicts` (E6 v1, 2026-10-16) and bounded context assembly as
-> `AssembleEvidence` (M3, 2026-10-16).
+> as `FindConflicts` (E6 v1, 2026-10-16), bounded context assembly as
+> `AssembleEvidence` (M3, 2026-10-16), and a source-grounded answer contract as
+> `GroundedAnswer` (E3, 2026-10-16 — structural linkage only).
 
 ---
 
@@ -31,7 +32,7 @@ Plan → Evaluate alternatives → Authorize → Execute → Verify → Learn
 | **Establish context** | system | PROPOSED | who asks, what they may see, what they mean |
 | **Retrieve evidence** | deterministic (graph) | IMPLEMENTED | bounded op traversal with provenance; `AssembleEvidence` assembles one entity's bounded context |
 | **Reason** | LLM *phrases*; rules *decide* | PARTIAL | deterministic composers today; LLM synthesis later |
-| **Validate** | deterministic | IMPLEMENTED (subset) | `knowledge.Answer.Validate` |
+| **Validate** | deterministic | IMPLEMENTED (subset) | `knowledge.Answer.Validate` + `graph.GroundedAnswer.Validate` (structural grounding, E3) |
 | **Plan** | rules + LLM phrasing | PROPOSED | goal/budget/deadline/dependency/risk |
 | **Evaluate alternatives** | deterministic | PROPOSED | Pareto/weighted comparison |
 | **Authorize** | deterministic | PROPOSED | [`ACTIONS.md`](ACTIONS.md) |
@@ -73,13 +74,15 @@ half for one entity: it resolves the entity with the canonical tiers (never
 guessing between candidates), follows that entity's edges deliberately, scopes
 to optional relationship types, filters **state** relations to an optional
 `as_of` under the canonical half-open rule (event relations carry no window and
-are not filtered, as in `FindExperts`), orders facts by a store-independent sort,
-caps the result by documented count/size limits, and reports truncation
-explicitly. Unknown, ambiguous, empty, and malformed-temporal inputs each have
-an explicit outcome; the call is read-only. Permission-aware dropping and
-relevance/recency ranking remain **PROPOSED** (no permission model or relevance
-score exists yet); `as_of` is the only ordering/selection lever today. The agent
-loop reaches it through the `assemble_context` tool.
+are not filtered, as in `FindExperts`), orders facts by a **total**
+store-independent sort, caps the result by documented count/size limits, and
+reports truncation explicitly. Unknown (`not_found`), ambiguous (candidates,
+no pick), empty (in scope), over-budget (byte bound excluded every in-scope
+fact), and malformed-temporal (error) inputs each have an explicit outcome; the
+call is read-only. Permission-aware dropping and relevance/recency ranking remain
+**PROPOSED** (no permission model or relevance score exists yet); `as_of` is the
+only ordering/selection lever today. The agent loop reaches it through the
+`assemble_context` tool.
 
 **Evidence selection.** Keep a fact if it **bears on a claim**. Every kept
 fact retains its `src_ref` so the claim can cite openable evidence.
@@ -94,6 +97,19 @@ fact retains its `src_ref` so the claim can cite openable evidence.
 `internal/knowledge/answer.go` already refuses to render a claim with no
 paths, or an INFERENCE without a `rule_id`. The engine must extend the same
 discipline to PREDICTION/PROPOSED states (`SCHEMA.md` §2).
+
+**Structural grounding (implemented 2026-10-16).** String paths cannot prove a
+claim is backed by the facts it was built from. `graph.GroundedAnswer`
+(`internal/graph/grounded.go`) closes that gap for retrieval-built answers: it
+carries the `knowledge.Answer`, the `EvidenceContext` it came from, and a
+`ClaimGrounding` per claim (subject, relationship, cited `EvidenceFact` IDs).
+`Validate` requires every FACT claim to cite a carried fact matching its
+subject/relationship and refuses any FACT claim on a non-`ok` context; a
+fabricated, cross-entity, or cross-relation citation fails. This is
+**structural** linkage, not entailment — it does not prove the claim's text
+follows from the evidence (E3 stays PARTIAL, `EVALUATION.md` §2.5). Absence
+claims have no fact to cite and remain outside the contract
+(`OPEN_QUESTIONS.md`).
 
 ## 4. Handling contradiction, uncertainty, and missing information
 

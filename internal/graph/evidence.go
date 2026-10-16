@@ -15,6 +15,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"sort"
 	"strings"
 	"time"
@@ -74,6 +75,12 @@ type EvidenceRequest struct {
 // identity, and the edge's complete provenance (including its
 // valid_from/valid_to world-validity window).
 type EvidenceFact struct {
+	// ID is a stable, content-derived identifier (evidenceFactID): the
+	// same fact always has the same ID across runs and a JSON round
+	// trip, so a claim can cite specific retrieved evidence without
+	// depending on position. Two genuinely identical facts share it —
+	// they are the same fact.
+	ID string `json:"id"`
 	// Entity is the requested anchor's key; the fact was retrieved
 	// because it touches this entity.
 	Entity     string               `json:"entity"`
@@ -81,6 +88,22 @@ type EvidenceFact struct {
 	Direction  string               `json:"direction"` // "out"|"in", from the anchor's view
 	Neighbor   NodeRef              `json:"neighbor"`
 	Provenance knowledge.Provenance `json:"provenance"`
+}
+
+// evidenceFactID derives a fact's stable identifier from its own
+// identifying fields — anchor, relationship, direction, neighbour, and
+// the full provenance (source and validity window). FNV-1a is enough:
+// the ID is resolved against the carried facts, not used for security,
+// and a context holds at most DefaultEvidenceLimit facts.
+func evidenceFactID(f EvidenceFact) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(strings.Join([]string{
+		f.Entity, f.Relation, f.Direction,
+		f.Neighbor.Key, f.Neighbor.Label, f.Neighbor.Name,
+		f.Provenance.SrcType, f.Provenance.SrcRef, f.Provenance.ObservedAt,
+		f.Provenance.Extraction, f.Provenance.ValidFrom, f.Provenance.ValidTo,
+	}, "\x00")))
+	return fmt.Sprintf("%016x", h.Sum64())
 }
 
 // EvidenceContext is the bounded retrieval result. Status is always set:
@@ -187,13 +210,15 @@ func (c *Client) AssembleEvidence(req EvidenceRequest) (EvidenceContext, error) 
 		if !factValidAt(e.Relation, e.Provenance, asOfT) {
 			continue
 		}
-		facts = append(facts, EvidenceFact{
+		fact := EvidenceFact{
 			Entity:     ev[0].Key,
 			Relation:   e.Relation,
 			Direction:  e.Direction,
 			Neighbor:   e.Neighbor,
 			Provenance: e.Provenance,
-		})
+		}
+		fact.ID = evidenceFactID(fact)
+		facts = append(facts, fact)
 	}
 	sortEvidenceFacts(facts)
 

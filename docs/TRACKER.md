@@ -22,6 +22,10 @@ Updated 2026-10-16. This describes the local Track 03 build. The broader M0–M7
 
 ## Integrated upstream work
 
+- E3: stable content-derived `EvidenceFact.ID` and `GroundedAnswer` validate FACT citations against carried evidence, subjects, relationships, and context status. Covered by `TestGroundedAnswer*`. This is structural grounding, not semantic entailment; the existing `/v1/ask` response is not automatically converted to this new contract.
+- M3 audit: total fact ordering and explicit `over_budget` outcomes are retained, including malformed-window, boundary, and size-limit tests.
+- E3 remains PARTIAL; model-based correctness evaluation and comparison baselines remain outstanding.
+
 - M3: `AssembleEvidence` and `assemble_context` supply deterministic one-hop context with relationship/time filters, count and byte bounds, and explicit truncation. Verified by `TestAssembleEvidence*` and `TestAssembleContextToolSuppliesEvidence`.
 - E1: adversarial `TestResolveEntityContract` retained; key-shaped name-tier ambiguity remains documented in EVALUATION.md.
 - E5/E6 temporal and conflict suites retained. Broader E1–E12 evaluation and comparison baselines remain incomplete.
