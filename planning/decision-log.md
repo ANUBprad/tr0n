@@ -155,6 +155,43 @@ previously PROPOSED). Evidence: `internal/graph/evidence.go`,
 `ResolveEntity` + `TraceEvidence`, each of which locks; taking `c.mu` would
 deadlock. Read-only: it writes nothing and never materializes an inference.
 
+## M3 evidence contract audit (2026-10-16)
+
+Adversarial audit of the M3 evidence-to-answer path (`internal/graph/evidence.go`
+→ `internal/agent/agent.go` → `internal/knowledge/answer.go`), traced end to end
+against the actual callers and serialization. Two demonstrated defects fixed;
+the rest of the enumerated cases were confirmed and locked with tests.
+
+Defect 1 — **`ok` with no facts.** A `max_bytes` smaller than a single fact's
+serialized row emptied `Facts` but left `Status` at `ok`, which the contract
+documents as "facts were found". Fixed by adding the explicit
+`EvidenceStatusOverBudget` outcome for that case (an *additive* status; `ok`,
+`not_found`, `ambiguous`, `empty` keep their meanings). Evidence:
+`TestAssembleEvidenceBounds` ("byte bound below one fact is an explicit
+outcome", "count and byte bounds both report").
+
+Defect 2 — **non-total sort.** `sortEvidenceFacts` compared only the six primary
+keys, so two facts equal on all of them inherited the store's return order
+(`sort.Slice` is not stable) and could swap between runs — which decides who
+survives a truncation. Fixed by making the comparator a total order over every
+fact field (`cmp.Or`), preserving the documented primary order. Evidence:
+`TestAssembleEvidenceOrderIsTotal` (pure unit: fails before the fix).
+
+| Decision | Why | Alternatives | Tradeoffs / limitations | Status |
+|---|---|---|---|---|
+| **`ok` means facts were found *and returned*; an unsatisfiable byte bound is the explicit `over_budget` outcome** | `status` is the field a consumer keys on; `ok` + empty `facts` is self-contradictory and could be read as usable evidence (or as evidence-less). The existing `empty` is wrong (facts *are* in scope) and `not_found` is wrong (the entity resolves) | Leave `ok` + empty `facts` (documented, but surprising); return the oversized fact and exceed `max_bytes`; reuse `empty` | Adds one status value consumers must handle; there is no HTTP surface for `AssembleEvidence` (only the `assemble_context` tool), so no external contract breaks. Bounds are otherwise unchanged | DECIDED (fix) |
+| **Fact ordering is a total order over every field, not just the primary keys** | "Store-independent order" must be true for every input, or the survivors of a truncation depend on DB scan order — a determinism (`REASONING.md` §7 reproducibility) defect, not a cosmetic one | Keep the six-key comparator and rely on `sort.Slice`; use a stable sort over the store's order (still store-dependent) | One extra comparator (`factLess`); negligible cost over ≤64 facts | DECIDED (fix) |
+| **`relations` is a scope, not a lookup: an unknown type yields `empty`, never an error** | Signed off as the contract's behavior; makes deliberate traversal total (a typo shows as no evidence rather than silently returning everything) | Validate against the 16-type schema and error on unknown; treat unknown as "no filter" | A mistyped type is not surfaced as an error (documented ceiling); validating is deferred — it would reject forward-compatible filters the resolver could still honor | DECIDED (documented) |
+| **A state edge with an unparseable stored window is excluded under `as_of`, never treated as always-valid** | Matches the E6 rule (an unreadable window is omitted, not assumed open) and is unreachable through `LoadEdges` (`validateEdge` requires a parseable `valid_from`); the guard only matters if a window is written around the loader | Treat malformed windows as always-valid; return an error | A malformed-window edge vanishes from as-of results (documented); the no-`as_of` read still returns it | CONFIRMED (no change) |
+| **No shared snapshot across the `ResolveEntity` → `TraceEvidence` composition; single-writer assumptions hold in v1** | The two sub-calls are not one snapshot, but the only writers are the recreate-only seed and tests under a single client mutex, so no supported workflow observes a harmful inconsistency; the absent-node race is already handled (`found=false` → `not_found`) | One lock around the whole assembly (deadlock as written; would need an unlocked inner path); a read transaction | Documented ceiling in the code (`ponytail:`); upgrade path = one lock / read transaction if a concurrent-writer workflow appears | CONFIRMED (no change) |
+| **No change to `knowledge.Answer`/`Claim.Paths`; the string-path bridge stays** | The retrieval half now returns complete structured provenance per `EvidenceFact`, but `Claim.Paths` is a string slice; changing the answer schema is an unrequested contract change | Extend `Claim` with structured provenance; add a parallel evidence envelope | Structured per-fact provenance lives only in `EvidenceContext`; linking a claim path back to a `EvidenceFact` is by path string. Revisit when the answer format is revised (`OPEN_QUESTIONS.md`) | UNDECIDED — recorded, no change |
+
+The audit also confirmed the agent tool surface does not choose `Candidates[0]`,
+hide truncation, or turn missing evidence into a supported claim: a claim with
+no path fails `Answer.Validate`, so zero-fact contexts cannot back one. The
+scripted-model tests prove tool behavior and transcript flow only; end-to-end
+grounding (E3) remains PROPOSED.
+
 ## Notes
 New decisions must be added here. Mark as DECIDED only after team consensus during/at hackathon start.
 

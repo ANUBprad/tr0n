@@ -73,13 +73,15 @@ half for one entity: it resolves the entity with the canonical tiers (never
 guessing between candidates), follows that entity's edges deliberately, scopes
 to optional relationship types, filters **state** relations to an optional
 `as_of` under the canonical half-open rule (event relations carry no window and
-are not filtered, as in `FindExperts`), orders facts by a store-independent sort,
-caps the result by documented count/size limits, and reports truncation
-explicitly. Unknown, ambiguous, empty, and malformed-temporal inputs each have
-an explicit outcome; the call is read-only. Permission-aware dropping and
-relevance/recency ranking remain **PROPOSED** (no permission model or relevance
-score exists yet); `as_of` is the only ordering/selection lever today. The agent
-loop reaches it through the `assemble_context` tool.
+are not filtered, as in `FindExperts`), orders facts by a **total**
+store-independent sort, caps the result by documented count/size limits, and
+reports truncation explicitly. Unknown (`not_found`), ambiguous (candidates,
+no pick), empty (in scope), over-budget (byte bound excluded every in-scope
+fact), and malformed-temporal (error) inputs each have an explicit outcome; the
+call is read-only. Permission-aware dropping and relevance/recency ranking remain
+**PROPOSED** (no permission model or relevance score exists yet); `as_of` is the
+only ordering/selection lever today. The agent loop reaches it through the
+`assemble_context` tool.
 
 **Evidence selection.** Keep a fact if it **bears on a claim**. Every kept
 fact retains its `src_ref` so the claim can cite openable evidence.

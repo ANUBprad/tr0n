@@ -166,23 +166,41 @@ under `-short`):
   unchanged, no `INFERENCE`/`rule_id` introduced);
 - **Canonical half-open `as_of`**: `valid_from <= as_of < valid_to` — inclusive
   at `valid_from`, exclusive at `valid_to` (the handoff instant belongs to the
-  later owner only); omitted `as_of` = full history; event relations (no window)
-  are never window-filtered;
+  later owner only); checked at the boundary and immediately either side of it;
+  an offset-equivalent instant (`05:30+05:30` == `00:00Z`) is the same boundary;
+  the echoed `as_of` is canonical UTC; omitted `as_of` = full history; event
+  relations (no window) are never window-filtered;
 - **Explicit outcomes, no guessing**: ambiguous resolution returns the candidate
   list with no facts; unknown → `not_found`; resolved-but-no-in-scope-fact →
-  `empty`; malformed `as_of` → error (never a silent no-filter); blank entity →
-  error;
-- **Bounds + truncation**: count and serialized-size caps are enforced and the
-  chosen reason is reported; defaults do not truncate normal results;
+  `empty`; unsatisfiable byte bound → `over_budget` (not `ok`); unknown/mistyped
+  `relations` filter → `empty` (a scope, never a silent no-filter); malformed
+  `as_of` → error (never a silent no-filter); blank entity → error;
+- **Bounds + truncation**: count and serialized-size caps are enforced and each
+  reason is reported (`count`, `size`, or `count+size`); a single fact larger
+  than `max_bytes` yields `over_budget` with `facts` empty, never `ok` with no
+  facts; defaults do not truncate normal results;
 - **Store-order independence**: the same facts seeded in reverse insertion order
-  produce byte-identical context (deterministic sort).
+  produce byte-identical context; the ordering is a **total** order (facts equal
+  on the primary keys still have one order — `TestAssembleEvidenceOrderIsTotal`);
+- **Malformed stored provenance**: a state edge with an unparseable window
+  (impossible through `LoadEdges`, possible if written around it) is excluded
+  under `as_of`, never treated as always-valid
+  (`TestAssembleEvidenceExcludesMalformedStoredWindow`).
 
 End-to-end integration: `internal/agent`
 `TestAssembleContextToolSuppliesEvidence` drives the loop with the
 `assemble_context` tool, asserts bounded/provenanced facts reach the transcript,
 and builds a `knowledge.Answer` claim from a returned fact path whose
 `Validate()` passes — the string-path bridge to the answer layer (structured
-provenance in an answer is an open question; see `OPEN_QUESTIONS.md`).
+provenance in an answer is an open question; see `OPEN_QUESTIONS.md`). Its
+subtests also drive the explicit outcomes and bounds **through the loop**:
+unknown entity → `not_found`; resolved-but-no-in-scope-fact → `empty`; unknown
+relation filter → `empty`; malformed `as_of` → turn error; unsatisfiable byte
+bound → `over_budget`; ambiguous name → candidates and no pick; missing
+`entity` → turn error; count bound reported. The scripted model is
+predetermined, so these prove **tool behavior and transcript flow**, not that a
+real model refrains from unsupported claims — end-to-end grounding (E3) stays
+PROPOSED.
 
 ## 3. Baselines and comparison
 

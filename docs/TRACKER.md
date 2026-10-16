@@ -62,7 +62,7 @@
 | Agent loop + tool schema | `internal/agent/agent.go` | **Implemented** | no provider adapter |
 | Answer validation / layering | `internal/agent`, `internal/knowledge` | **Verified** | — |
 | LLM provider adapter | — | **Not started** | M3; ADR required |
-| Retrieval/context assembly | `internal/graph/evidence.go` | **Implemented** | M3, 2026-10-16: `AssembleEvidence` + `assemble_context` tool — resolve (never picks among candidates), 1-hop edges scoped to optional relations, half-open `as_of` filter on state relations, store-independent sort, count/size bounds, explicit truncation + explicit `not_found`/`ambiguous`/`empty`; permission-aware drop + relevance/recency ranking still PROPOSED |
+| Retrieval/context assembly | `internal/graph/evidence.go` | **Implemented** | M3, 2026-10-16: `AssembleEvidence` + `assemble_context` tool — resolve (never picks among candidates), 1-hop edges scoped to optional relations, half-open `as_of` filter on state relations, **total** store-independent sort, count/size bounds, explicit truncation + explicit `not_found`/`ambiguous`/`empty`/`over_budget`; audited 2026-10-16 (over-budget outcome + total order fixed); permission-aware drop + relevance/recency ranking still PROPOSED |
 | Rules engine | — | **Not started** | M4 |
 
 ### Ingestion
@@ -94,7 +94,7 @@
 ### Evaluation & docs
 | Component | Status | Evidence/Gaps |
 |---|---|---|
-| Go test suites (11 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants; M3 `evidence_test.go` (relevance/no-leak, provenance/windows, half-open `as_of` incl. boundaries, explicit outcomes, count/size bounds, store-order independence) |
+| Go test suites (11 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants; M3 `evidence_test.go` (relevance/no-leak, provenance/windows, half-open `as_of` incl. boundary neighbours + offset-equivalent instants, explicit outcomes incl. `over_budget`, count/size bounds incl. unsatisfiable budget, malformed stored window, total store-order independence) |
 | Eval suites E1–E12 | **In progress** | E1 PARTIAL (2026-10-16: `TestResolveEntity`, adversarial `TestResolveEntityContract` — recorded key-shaped ambiguity), E2 PARTIAL, E4 IMPLEMENTED (structural); E5 **IMPLEMENTED** (2026-10-16: `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`); E6 **IMPLEMENTED** (2026-10-16: `TestFindConflicts`, `TestEndpoints/conflicts`); M3 retrieval/context assembly **IMPLEMENTED** (2026-10-16, EVALUATION §2.4: `TestAssembleEvidence*`, `TestAssembleContextToolSuppliesEvidence`); E3/E7+ PROPOSED; baselines none |
 | Comparison baselines | **Not started** | keyword search, RAG, tool-LLM |
 | Canonical docs (this set) | **Verified** | `docs/README.md` index |
