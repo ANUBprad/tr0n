@@ -1,0 +1,22 @@
+[
+  {
+    "key": "docs:payments-runbook",
+    "title": "Payments timeout investigation runbook",
+    "body": "Synthetic runbook: confirm gateway latency and error rates. Check the ledger result for the idempotency key before retrying. Compare with the September peak-load timeout incident and ask its recorded resolver for context. Record the outcome after investigation.",
+    "kind": "runbook",
+    "author_key": "person:2",
+    "about_key": "service:payments-api",
+    "source_ref": "synthetic/runbooks/payments",
+    "observed_at": "2026-10-16T06:00:00Z"
+  },
+  {
+    "key": "chat:payments-review",
+    "title": "Payments review: source refresh",
+    "body": "Synthetic chat: Grace confirmed the investigation runbook links to the payments service. Ada asked that the ledger be checked before any retry. This message is context, not approval to change production.",
+    "kind": "chat",
+    "author_key": "person:1",
+    "about_key": "service:payments-api",
+    "source_ref": "synthetic/chat/payments-review",
+    "observed_at": "2026-10-16T06:00:00Z"
+  }
+]

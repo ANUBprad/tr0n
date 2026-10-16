@@ -44,6 +44,7 @@ ENV/
 # Data (keep synthetic only, don't commit large generated dumps unless planned)
 data/
 *.json
+!examples/*.json
 *.csv
 
 # Node
