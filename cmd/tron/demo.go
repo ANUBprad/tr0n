@@ -9,15 +9,15 @@ import (
 	"github.com/ANUBprad/tr0n/internal/graph"
 )
 
-// runDemo executes the five DEMO_SPEC scenarios plus the evidence
-// drill-down as pass/fail checks against the connected graph. It runs
-// every check (a demo with three broken steps still shows what works)
-// and returns a non-nil error if any failed.
+// runDemo executes the five DEMO_SPEC scenarios, the temporal as-of
+// check, and the evidence drill-down as pass/fail checks against the
+// connected graph. It runs every check (a demo with three broken steps
+// still shows what works) and returns a non-nil error if any failed.
 //
 // The narrative doubles as the judge-facing proof: each [ok] line is
 // produced by a real FalkorDB traversal, not a canned string.
 func runDemo(w io.Writer, c *graph.Client) error {
-	fmt.Fprintln(w, "TRON demo — five scenarios + evidence drill-down")
+	fmt.Fprintln(w, "TRON demo — five scenarios + temporal as-of + evidence drill-down")
 	fails := 0
 	report := func(title, detail string, ok bool) {
 		if ok {
@@ -36,6 +36,24 @@ func runDemo(w io.Writer, c *graph.Client) error {
 			fmt.Sprintf("%s (%s), %d current owner(s)", owners[0].Name, owners[0].Key, len(owners)), true)
 	} else {
 		report("1. Who owns payments-api?", failDetail(err, seedHint), false)
+	}
+
+	// Temporal as-of: the same query at a past instant returns the
+	// superseded owner. The values are read live (never a canned answer);
+	// the check passes only when the historical owner is found and
+	// differs from today's — proof the graph answers "who owned this
+	// then", not just "now".
+	pastOwners, pastErr := c.FindOwner("payments-api", time.Date(2025, 2, 15, 0, 0, 0, 0, time.UTC))
+	asOfOK := pastErr == nil && ownerOK && len(pastOwners) == 1 && pastOwners[0].Key != owners[0].Key
+	switch {
+	case asOfOK:
+		report("Temporal as-of: who owned payments-api before the handoff?",
+			fmt.Sprintf("%s at 2025-02-15, %s now — window handoff", pastOwners[0].Name, owners[0].Name), true)
+	case pastErr != nil:
+		report("Temporal as-of: who owned payments-api before the handoff?", failDetail(pastErr, seedHint), false)
+	default:
+		report("Temporal as-of: who owned payments-api before the handoff?",
+			"no historical handoff observed — "+seedHint, false)
 	}
 
 	experts, err := c.FindExperts("service:payments-api", 5, time.Now().UTC())
@@ -110,7 +128,7 @@ func runDemo(w io.Writer, c *graph.Client) error {
 			failDetail(err, evKey+" not found with edges — "+seedHint), false)
 	}
 
-	const checks = 6
+	const checks = 7
 	if fails > 0 {
 		return fmt.Errorf("%d of %d demo checks failed", fails, checks)
 	}

@@ -109,6 +109,14 @@ func TestSeedServesFiveQueries(t *testing.T) {
 		if owners[0].Provenance.SrcType != "service_registry" {
 			t.Errorf("owner provenance: %+v", owners[0].Provenance)
 		}
+		// The as-of fixture: person:2 owned payments-api before person:1.
+		hist, err := c.FindOwner("payments-api", time.Date(2025, 2, 15, 0, 0, 0, 0, time.UTC))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hist) != 1 || hist[0].Key != "person:2" {
+			t.Errorf("historical owner at 2025-02-15: %+v", hist)
+		}
 	})
 
 	t.Run("find_experts", func(t *testing.T) {

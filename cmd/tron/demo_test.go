@@ -28,7 +28,7 @@ func demoClient(t *testing.T) *graph.Client {
 	return c
 }
 
-// The one runnable check for the demo: seeded graph passes all six
+// The one runnable check for the demo: seeded graph passes all seven
 // checks with a judge-readable narrative.
 func TestRunDemoSeeded(t *testing.T) {
 	c := demoClient(t)
@@ -41,8 +41,9 @@ func TestRunDemoSeeded(t *testing.T) {
 	}
 	out := buf.String()
 	for _, want := range []string{
-		"6/6 demo checks passed",
+		"7/7 demo checks passed",
 		"[ok]   1. Who owns payments-api?",
+		"[ok]   Temporal as-of: who owned payments-api before the handoff?",
 		"[ok]   2. Who knows payments-api best?",
 		"[ok]   3. Why did we adopt FalkorDB?",
 		"[ok]   4. Has payments-api timed out before?",
@@ -69,7 +70,7 @@ func TestRunDemoUnseeded(t *testing.T) {
 	if err == nil {
 		t.Fatalf("empty graph must fail the demo:\n%s", buf.String())
 	}
-	if !strings.Contains(err.Error(), "of 6 demo checks failed") {
+	if !strings.Contains(err.Error(), "of 7 demo checks failed") {
 		t.Errorf("error: %v", err)
 	}
 	if !strings.Contains(buf.String(), "[FAIL]") || !strings.Contains(buf.String(), "tron seed") {

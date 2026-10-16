@@ -85,6 +85,14 @@ func (d *Data) edgeAs(rel, from, to, validFrom, srcType string) {
 	d.edges[rel] = append(d.edges[rel], graph.EdgeRow{From: from, To: to, Props: p})
 }
 
+// edgeWindow adds a state edge with a closed window [validFrom, validTo)
+// — a superseded fact, per the close+open rule (docs/SCHEMA.md §5).
+func (d *Data) edgeWindow(rel, from, to, validFrom, validTo string) {
+	p := provenance(edgeSrc[rel])
+	p["valid_from"], p["valid_to"] = validFrom, validTo
+	d.edges[rel] = append(d.edges[rel], graph.EdgeRow{From: from, To: to, Props: p})
+}
+
 // Counts returns row totals keyed by label / relationship type.
 func (d *Data) Counts() map[string]int {
 	m := map[string]int{}
@@ -146,9 +154,10 @@ func Load(c *graph.Client) (*Data, error) {
 // Generate builds the full synthetic graph. Pure and deterministic.
 //
 // Design notes (demo-critical wiring, not accidental density):
-//   - payments-api is the demo service: owned by person:1, backed by
-//     repo:1, hit by incidents 1–6 (4 "timeout" titles in 2026), and
-//     touched by PRs whose authors fan out across people.
+//   - payments-api is the demo service: owned by person:1 (formerly
+//     person:2, the as-of fixture), backed by repo:1, hit by incidents
+//     1–6 (4 "timeout" titles in 2026), and touched by PRs whose authors
+//     fan out across people.
 //   - decision:1 "Adopt FalkorDB" supersedes decision:2 (Neo4j),
 //     supports docs 1–2, and was discussed in meeting:1 with person:1
 //     present — the TraceDecision showcase.
@@ -376,6 +385,12 @@ func Generate() *Data {
 		d.edge("OWNS", fmt.Sprintf("person:%d", i+1),
 			"service:"+services[i], rfc(60))
 	}
+	// payments-api ownership handoff — the deterministic temporal
+	// fixture as-of queries and `tron demo` exercise: person:2 owned it
+	// over [rfc(30), rfc(60)), then person:1 took over at rfc(60)
+	// (open-ended). Touching half-open windows, so a clean close+open,
+	// never an E6 overlap.
+	d.edgeWindow("OWNS", "person:2", "service:"+services[0], rfc(30), rfc(60))
 	for i := 0; i < 15; i++ {
 		d.edge("OWNS", fmt.Sprintf("person:%d", i+1),
 			fmt.Sprintf("repo:%d", i+1), rfc(60))

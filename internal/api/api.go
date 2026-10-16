@@ -33,6 +33,7 @@ func Handler(c *graph.Client) http.Handler {
 	mux.HandleFunc("POST /v1/owner", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Target string `json:"target"`
+			AsOf   string `json:"as_of"`
 		}
 		if !decode(w, r, &req) {
 			return
@@ -41,7 +42,11 @@ func Handler(c *graph.Client) http.Handler {
 			badRequest(w, "target is required")
 			return
 		}
-		owners, err := c.FindOwner(req.Target)
+		asOf, ok := optionalInstant(w, "as_of", req.AsOf)
+		if !ok {
+			return
+		}
+		owners, err := c.FindOwner(req.Target, asOf)
 		if err != nil {
 			serverError(w, err)
 			return
@@ -54,6 +59,7 @@ func Handler(c *graph.Client) http.Handler {
 			ServiceKey string `json:"service_key"`
 			Limit      int    `json:"limit"`
 			Now        string `json:"now"`
+			AsOf       string `json:"as_of"`
 		}
 		if !decode(w, r, &req) {
 			return
@@ -62,16 +68,18 @@ func Handler(c *graph.Client) http.Handler {
 			badRequest(w, "service_key is required")
 			return
 		}
-		now := time.Now().UTC()
-		if req.Now != "" {
-			t, err := time.Parse(time.RFC3339, req.Now)
-			if err != nil {
-				badRequest(w, fmt.Sprintf("now must be RFC3339 (got %q)", req.Now))
-				return
-			}
-			now = t
+		now, ok := optionalInstant(w, "now", req.Now)
+		if !ok {
+			return
 		}
-		res, err := c.FindExperts(req.ServiceKey, req.Limit, now)
+		if now.IsZero() {
+			now = time.Now().UTC()
+		}
+		asOf, ok := optionalInstant(w, "as_of", req.AsOf)
+		if !ok {
+			return
+		}
+		res, err := c.FindExperts(req.ServiceKey, req.Limit, now, asOf)
 		if err != nil {
 			serverError(w, err)
 			return
@@ -115,11 +123,8 @@ func Handler(c *graph.Client) http.Handler {
 			badRequest(w, "service_key is required")
 			return
 		}
-		if req.Since != "" {
-			if _, err := time.Parse(time.RFC3339, req.Since); err != nil {
-				badRequest(w, fmt.Sprintf("since must be RFC3339 (got %q)", req.Since))
-				return
-			}
+		if _, ok := optionalInstant(w, "since", req.Since); !ok {
+			return
 		}
 		incidents, err := c.FindRelatedIncidents(req.ServiceKey, req.Since, req.Keywords)
 		if err != nil {
@@ -231,6 +236,21 @@ func write(w http.ResponseWriter, code int, v interface{}) {
 
 func badRequest(w http.ResponseWriter, msg string) {
 	write(w, http.StatusBadRequest, map[string]string{"error": msg})
+}
+
+// optionalInstant parses an optional RFC3339 body field. Empty means
+// "unspecified" (zero time, the caller decides the default); a malformed
+// value writes a 400 and returns ok=false so the handler returns early.
+func optionalInstant(w http.ResponseWriter, field, v string) (time.Time, bool) {
+	if v == "" {
+		return time.Time{}, true
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		badRequest(w, fmt.Sprintf("%s must be RFC3339 (got %q)", field, v))
+		return time.Time{}, false
+	}
+	return t, true
 }
 
 // serverError logs the diagnostic server-side and returns a stable,

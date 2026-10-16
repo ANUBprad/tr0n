@@ -82,6 +82,13 @@ func TestEndpoints(t *testing.T) {
 		if prov["src_type"] != "service_registry" {
 			t.Errorf("provenance not shipped: %v", prov)
 		}
+		// as_of returns the superseded owner (seed: person:2 owned
+		// payments-api before person:1) — the E5 temporal contract.
+		hist := postList(t, "/v1/owner",
+			`{"target":"payments-api","as_of":"2025-02-15T00:00:00Z"}`, http.StatusOK)
+		if len(hist) != 1 || hist[0].(map[string]interface{})["key"] != "person:2" {
+			t.Errorf("as_of owner must be the superseded one: %v", hist)
+		}
 	})
 
 	t.Run("experts", func(t *testing.T) {
@@ -98,6 +105,19 @@ func TestEndpoints(t *testing.T) {
 		top := experts[0].(map[string]interface{})
 		if top["key"] != "person:1" || top["current_owner"] != true {
 			t.Errorf("owner must rank first: %v", top)
+		}
+		// as_of judges ownership at the instant: in Feb 2025 person:2
+		// was the owner, so it ranks first then (now still drives decay).
+		histRes := post(t, "/v1/experts",
+			`{"service_key":"service:payments-api","limit":5,"now":"2026-10-08T12:00:00Z","as_of":"2025-02-15T00:00:00Z"}`,
+			http.StatusOK)
+		histExperts, _ := histRes["experts"].([]interface{})
+		if len(histExperts) == 0 {
+			t.Fatalf("as_of experts: empty")
+		}
+		histTop := histExperts[0].(map[string]interface{})
+		if histTop["key"] != "person:2" || histTop["current_owner"] != true {
+			t.Errorf("as_of owner must rank first: %v", histTop)
 		}
 	})
 
@@ -204,6 +224,10 @@ func TestEndpoints(t *testing.T) {
 		post(t, "/v1/owner", `{"target":"x","typo":1}`, http.StatusBadRequest)
 		post(t, "/v1/incidents",
 			`{"service_key":"s","since":"yesterday"}`, http.StatusBadRequest)
+		post(t, "/v1/owner",
+			`{"target":"payments-api","as_of":"last tuesday"}`, http.StatusBadRequest)
+		post(t, "/v1/experts",
+			`{"service_key":"service:payments-api","as_of":"yesterday"}`, http.StatusBadRequest)
 		post(t, "/v1/evidence", `{"keys":[]}`, http.StatusBadRequest)
 
 		resp, err := http.Get(srv.URL + "/v1/health")
