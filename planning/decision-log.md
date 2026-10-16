@@ -158,3 +158,23 @@ deadlock. Read-only: it writes nothing and never materializes an inference.
 ## Notes
 New decisions must be added here. Mark as DECIDED only after team consensus during/at hackathon start.
 
+
+## Competition build completion decisions — 2026-10-16
+
+These supersede earlier deferrals for the local Track 03 build, authorized by the participant's completion request.
+
+- **Deterministic question agent:** `agent.Ask` resolves identities from the graph and routes five workflows. Unknown intents and ambiguous entities abstain. No LLM provider is selected or required.
+- **L2 draft only:** handoff Markdown is generated from retrieved evidence, with a human-review label. It does not send messages or assign work. No L3+ executor is introduced.
+- **Explicit source refresh:** CLI `import` accepts mapped Document artifacts (including chat/ticket kinds), with atomic per-record upserts, source identity checks, observation ordering, and idempotency. It preserves the graph-operation writer boundary. Batch partial progress is reported and retryable.
+- **Ownership writer:** CLI `owner-set` applies explicitly sourced registry changes in one Cypher mutation, closing the previous window and opening its replacement. Repeated same-owner updates are no-ops. Backdated/scheduled-history rewriting is rejected.
+- **Current means now:** the far-future ownership sentinel is removed; omitted as_of uses actual UTC time. A regression test covers a current owner whose window ends at a future handoff.
+- **Whole-second validity:** state-window endpoints must have whole-second precision. This avoids silent fractional truncation under lexically compared canonical UTC timestamps.
+- **Identity guard:** LoadNodes rejects graph-wide duplicate keys across loads within the single serialized writer. This supersedes the earlier in-batch-only deferral; external concurrent writers still require database constraints.
+- **Source content:** Document adds body and kinds chat/ticket; Decision adds recorded rationale. Missing rationale is disclosed instead of presenting the provenance neighborhood as an explanation.
+- **Local packaging:** Docker Compose pins the tested FalkorDB image digest and persists the graph. A Go multi-stage image provides the optional application service. Public hosting/authentication remain out of scope.
+
+## 2026-10-16 - integration of Company Brain completion and upstream M3
+
+- Preserved upstream identity contract tests and bounded evidence assembly, including explicit truncation and ambiguous outcomes. Consolidated duplicate loader guards into the upstream implementation.
+- Kept source timestamps visible without assigning a universal stale threshold, consistent with the upstream freshness decision.
+- Current ownership uses actual UTC now, superseding the earlier far-future sentinel decision; scheduled future owners must not appear as current owners.

@@ -1,3 +1,5 @@
+ARCHIVED PRE-EVENT INSTRUCTIONS — the preparation-only restrictions below expired when the event began on October 15, 2026. Current implementation follows AGENTS.md and planning/decision-log.md.
+
 PRE-HACKATHON FOUNDATION ONLY
 TRON - Trusted Reasoning & Organizational Nexus
 Graph Hacks: Context for AI Agents | FalkorDB
@@ -15,4 +17,3 @@ CORE RULES:
 10. Keep all choices honest (PROPOSED/UNDECIDED).
 11. Optimize for 72-hour hackathon: working > broad, deep > shallow, evidence > flashy.
 12. Always consider graph centrality - remove FalkorDB should materially affect product.
-

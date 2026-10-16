@@ -34,6 +34,8 @@ out for — with evidence. Start with [`PRD.md`](PRD.md); follow the map below.
 | [`RULES.md`](RULES.md) | Engineering rules, ADR register, risk register |
 | [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md) | Dependency-aware roadmap |
 | [`TRACKER.md`](TRACKER.md) | Live milestone/component status |
+| [`CYPHER_QUERIES.md`](CYPHER_QUERIES.md) | FalkorDB traversals and graph-derived rules used by the product |
+| [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) | Recording preparation and timed judge-facing demo narration |
 
 ## Locked current-state authorities
 

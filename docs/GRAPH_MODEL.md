@@ -1,5 +1,7 @@
 # TRON — Graph Model (Initial Schema, Locked)
 
+> **2026-10-16 implementation amendment:** Document now includes optional `body` and supports `chat`/`ticket` kinds; Decision includes optional recorded `rationale`. Current ownership uses actual UTC time, and validity windows have whole-second precision. `LoadNodes` rejects duplicate keys across loads/labels within the serialized client. Structured imports and sourced ownership updates are implemented; see `TRACKER.md` and the latest decision-log entry. These changes supersede the earlier deferral notes below.
+
 **Status**: LOCKED (2026-10-08) — initial schema for the first useful
 product, not a model of the whole world. See `planning/decision-log.md`.
 Provenance/temporal rules: `knowledge-model.md`. Cypher lives only in

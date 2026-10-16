@@ -1,3 +1,5 @@
+> **Current competition build (2026-10-16):** See `TRACKER.md` and the root README for implemented behavior. The build now includes bounded natural-language routing, inspectable source content, handoff drafts, structured file imports, and sourced ownership updates. General-purpose LLM reasoning, live connectors, and autonomous execution remain future work.
+
 # TRON — Application Flow, Interfaces & Product Design
 
 **Status**: Canonical. Authority for CLI, API, and UI responsibilities,
