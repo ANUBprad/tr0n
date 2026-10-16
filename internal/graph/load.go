@@ -112,10 +112,14 @@ func validateEdge(rel string, r EdgeRow) error {
 	if !allowed(stateRelations, rel) && validTo != "" {
 		return fmt.Errorf("%s edge %s->%s: event/evidence relation must not carry %q", rel, r.From, r.To, "valid_to")
 	}
-	// Each window endpoint present is parsed on its own: a malformed
-	// valid_from must fail even when valid_to is absent (query code would
-	// otherwise misread the window), and offsets are accepted because every
-	// comparison is an instant comparison, not a string compare.
+	// Each window endpoint present is parsed on its own (a malformed
+	// valid_from must fail even when valid_to is absent, or query code
+	// would misread the window) and then rewritten to canonical RFC3339
+	// UTC. FalkorDB has no datetime() function (verified), so as-of
+	// predicates compare windows as strings; only canonical same-format
+	// strings order lexically the same as chronologically. Normalizing on
+	// write keeps that true for any offset the source sends
+	// (e.g. 05:30+05:30 → 00:00Z).
 	var vf, vt time.Time
 	if validFrom != "" {
 		t, err := time.Parse(time.RFC3339, validFrom)
@@ -123,6 +127,7 @@ func validateEdge(rel string, r EdgeRow) error {
 			return fmt.Errorf("%s edge %s->%s: valid_from %q is not RFC3339: %w", rel, r.From, r.To, validFrom, err)
 		}
 		vf = t
+		r.Props["valid_from"] = t.UTC().Format(time.RFC3339)
 	}
 	if validTo != "" {
 		t, err := time.Parse(time.RFC3339, validTo)
@@ -130,6 +135,7 @@ func validateEdge(rel string, r EdgeRow) error {
 			return fmt.Errorf("%s edge %s->%s: valid_to %q is not RFC3339: %w", rel, r.From, r.To, validTo, err)
 		}
 		vt = t
+		r.Props["valid_to"] = t.UTC().Format(time.RFC3339)
 	}
 	if validFrom != "" && validTo != "" && vt.Before(vf) {
 		return fmt.Errorf("%s edge %s->%s: valid_to %s is before valid_from %s", rel, r.From, r.To, validTo, validFrom)

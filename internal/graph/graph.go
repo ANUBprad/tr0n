@@ -43,8 +43,8 @@ func (c *Client) Close() error {
 	return c.db.Conn.Close()
 }
 
-// Owner is the current owner of a target entity, with the OWNS edge's
-// provenance as evidence.
+// Owner is the owner of a target entity at an as-of instant, with the
+// OWNS edge's provenance and validity window as evidence.
 type Owner struct {
 	Key        string               `json:"key"`
 	Name       string               `json:"name"`
@@ -52,18 +52,43 @@ type Owner struct {
 	Provenance knowledge.Provenance `json:"provenance"`
 }
 
+// openEndedAsOf is the as-of instant used when the caller omits as_of.
+// At a far-future instant the half-open predicate
+// (valid_from <= as_of AND (valid_to IS NULL OR valid_to > as_of))
+// is exactly "no valid_to" — the established current-state behavior — so
+// one parameterized query serves both current and historical reads.
+// FalkorDB has no datetime() (verified), so windows compare as canonical
+// RFC3339 UTC strings: the loader normalizes every stored endpoint and
+// asOfInstant normalizes the argument.
+const openEndedAsOf = "9999-12-31T23:59:59Z"
+
+// asOfInstant resolves the optional as_of argument to the canonical
+// RFC3339 UTC instant the queries compare against. Absent or zero means
+// current state.
+func asOfInstant(asOf []time.Time) string {
+	if len(asOf) == 0 || asOf[0].IsZero() {
+		return openEndedAsOf
+	}
+	return asOf[0].UTC().Format(time.RFC3339)
+}
+
 // FindOwner answers "who owns this?" for an entity matched by name or
-// key. Current owners only: superseded (valid_to) edges are ignored.
-func (c *Client) FindOwner(target string) ([]Owner, error) {
+// key. With no as_of it returns current owners; with an as_of instant it
+// returns ownership valid at that instant under the half-open rule
+// (valid_from <= as_of < valid_to), so a superseded handoff is
+// queryable at the era it held. Ordering and provenance are unchanged.
+func (c *Client) FindOwner(target string, asOf ...time.Time) ([]Owner, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	const q = `
 	MATCH (o)-[r:OWNS]->(t)
-	WHERE (t.name = $target OR t.key = $target) AND r.valid_to IS NULL
+	WHERE (t.name = $target OR t.key = $target)
+	  AND r.valid_from <= $as_of
+	  AND (r.valid_to IS NULL OR r.valid_to > $as_of)
 	RETURN o.key AS owner_key, o.name AS owner_name, labels(o)[0] AS owner_kind,
 	       r.src_type AS src_type, r.src_ref AS src_ref, r.observed_at AS observed_at,
 	       r.extraction AS extraction, r.valid_from AS valid_from`
-	res, err := c.g.ROQuery(q, map[string]interface{}{"target": target}, nil)
+	res, err := c.g.ROQuery(q, map[string]interface{}{"target": target, "as_of": asOfInstant(asOf)}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("find owner %q: %w", target, err)
 	}
@@ -105,17 +130,21 @@ const expertsQuery = `
 	       coalesce(d.published_at, '') AS occurred_at, [p, d, s] AS nodes, [ad, ab] AS edges
 	UNION ALL
 	MATCH (o)-[ow:OWNS]->(s:Service {key: $key})
-	WHERE ow.valid_to IS NULL
+	WHERE ow.valid_from <= $as_of
+	  AND (ow.valid_to IS NULL OR ow.valid_to > $as_of)
 	RETURN o.key AS person_key, o.name AS person_name, 'owner' AS class,
 	       '' AS occurred_at, [o, s] AS nodes, [ow] AS edges`
 
 // FindExperts answers "who knows this system best?" for one service:
-// deterministic expertise/v1 scoring over fact paths, ranked with
-// current owners first. Pure function of (graph, now).
-func (c *Client) FindExperts(serviceKey string, limit int, now time.Time) (*knowledge.ExpertiseResult, error) {
+// deterministic expertise/v1 scoring over fact paths, ranked with owners
+// first. Pure function of (graph, now). The optional as_of sets the
+// instant ownership is judged at (default: current); now still drives
+// recency decay, so the two are independent — a historical ranking is
+// still scored fresh as of the given now.
+func (c *Client) FindExperts(serviceKey string, limit int, now time.Time, asOf ...time.Time) (*knowledge.ExpertiseResult, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	res, err := c.g.ROQuery(expertsQuery, map[string]interface{}{"key": serviceKey}, nil)
+	res, err := c.g.ROQuery(expertsQuery, map[string]interface{}{"key": serviceKey, "as_of": asOfInstant(asOf)}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("find experts %q: %w", serviceKey, err)
 	}

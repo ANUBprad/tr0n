@@ -126,6 +126,128 @@ func TestFindOwner(t *testing.T) {
 	})
 }
 
+// TestFindOwnerAsOf is the runnable check for E5 temporal as-of: the
+// half-open predicate valid_from <= as_of < valid_to, exercised at every
+// boundary (start inclusive, end exclusive, gap, open-ended, before all),
+// plus provenance preservation and the omitted-as-of default.
+func TestFindOwnerAsOf(t *testing.T) {
+	c := newTestClient(t)
+
+	seed := `
+	CREATE (alice:Person {key: 'person:alice', name: 'Alice'}),
+	       (carol:Person {key: 'person:carol', name: 'Carol'}),
+	       (svc:Service {key: 'service:core', name: 'core-svc'}),
+	       (alice)-[:OWNS {src_type: 'service_registry', src_ref: 'registry.json',
+	                       observed_at: '2026-10-01T00:00:00Z', extraction: 'deterministic',
+	                       valid_from: '2026-01-01T00:00:00Z', valid_to: '2026-04-01T00:00:00Z'}]->(svc),
+	       (carol)-[:OWNS {src_type: 'service_registry', src_ref: 'registry.json',
+	                       observed_at: '2026-10-01T00:00:00Z', extraction: 'deterministic',
+	                       valid_from: '2026-05-01T00:00:00Z', valid_to: null}]->(svc)`
+	if _, err := c.g.Query(seed, nil, nil); err != nil {
+		t.Fatalf("seed fixture: %v", err)
+	}
+	at := func(s string) []time.Time { return []time.Time{mustTime(t, s)} }
+
+	cases := []struct {
+		name     string
+		asOf     []time.Time
+		want     string // expected owner key, "" for none
+		wantFrom string // expected provenance valid_from when want != ""
+	}{
+		{"inside first era", at("2026-03-15T00:00:00Z"), "person:alice", "2026-01-01T00:00:00Z"},
+		{"start is inclusive (== valid_from)", at("2026-01-01T00:00:00Z"), "person:alice", "2026-01-01T00:00:00Z"},
+		{"end is exclusive (== valid_to)", at("2026-04-01T00:00:00Z"), "", ""},
+		{"inside the gap", at("2026-04-20T00:00:00Z"), "", ""},
+		{"start of second era", at("2026-05-01T00:00:00Z"), "person:carol", "2026-05-01T00:00:00Z"},
+		{"open-ended (no valid_to)", at("2026-07-01T00:00:00Z"), "person:carol", "2026-05-01T00:00:00Z"},
+		{"before every window", at("2025-12-31T00:00:00Z"), "", ""},
+		{"omitted as_of = current", nil, "person:carol", "2026-05-01T00:00:00Z"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			owners, err := c.FindOwner("core-svc", tc.asOf...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch {
+			case tc.want == "" && len(owners) != 0:
+				t.Fatalf("want no owner, got %+v", owners)
+			case tc.want != "" && (len(owners) != 1 || owners[0].Key != tc.want):
+				t.Fatalf("want owner %s, got %+v", tc.want, owners)
+			}
+			// A historical read still ships full provenance — it is a fact.
+			if tc.want != "" {
+				if p := owners[0].Provenance; p.SrcRef != "registry.json" || p.ValidFrom != tc.wantFrom {
+					t.Errorf("provenance not preserved: %+v", p)
+				}
+			}
+		})
+	}
+}
+
+func mustTime(t *testing.T, s string) time.Time {
+	t.Helper()
+	ts, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		t.Fatalf("bad test timestamp %q: %v", s, err)
+	}
+	return ts
+}
+
+// TestFindExpertsAsOf checks that as_of flows into the owner branch
+// (CurrentOwner flips with the era) while now stays independent (it
+// still drives decay). No non-owner events here, so the ranking is
+// exactly the ownership at the instant.
+func TestFindExpertsAsOf(t *testing.T) {
+	c := newTestClient(t)
+
+	seed := `
+	CREATE (alice:Person {key: 'person:alice', name: 'Alice'}),
+	       (carol:Person {key: 'person:carol', name: 'Carol'}),
+	       (svc:Service {key: 'service:payments', name: 'payments-api'}),
+	       (alice)-[:OWNS {src_type: 'seed', src_ref: 'fixture',
+	                       observed_at: '2026-10-01T00:00:00Z', extraction: 'deterministic',
+	                       valid_from: '2026-01-01T00:00:00Z', valid_to: '2026-04-01T00:00:00Z'}]->(svc),
+	       (carol)-[:OWNS {src_type: 'seed', src_ref: 'fixture',
+	                       observed_at: '2026-10-01T00:00:00Z', extraction: 'deterministic',
+	                       valid_from: '2026-05-01T00:00:00Z', valid_to: null}]->(svc)`
+	if _, err := c.g.Query(seed, nil, nil); err != nil {
+		t.Fatalf("seed fixture: %v", err)
+	}
+	now := time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)
+
+	ownerAt := func(t *testing.T, asOf []time.Time) string {
+		t.Helper()
+		got, err := c.FindExperts("service:payments", 5, now, asOf...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.Experts) != 1 || !got.Experts[0].CurrentOwner {
+			t.Fatalf("want exactly one current owner, got %+v", got.Experts)
+		}
+		return got.Experts[0].Key
+	}
+
+	if got := ownerAt(t, []time.Time{mustTime(t, "2026-02-01T00:00:00Z")}); got != "person:alice" {
+		t.Errorf("owner as of Feb = %s, want person:alice", got)
+	}
+	if got := ownerAt(t, []time.Time{mustTime(t, "2026-06-01T00:00:00Z")}); got != "person:carol" {
+		t.Errorf("owner as of Jun = %s, want person:carol", got)
+	}
+	if got := ownerAt(t, nil); got != "person:carol" {
+		t.Errorf("omitted as_of owner = %s, want current person:carol", got)
+	}
+
+	// Between the eras nobody owns it: no owner branch, no experts at all.
+	gap, err := c.FindExperts("service:payments", 5, now, mustTime(t, "2026-04-20T00:00:00Z"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gap.Experts) != 0 {
+		t.Errorf("gap should have no owner events, got %+v", gap.Experts)
+	}
+}
+
 // End-to-end check for FindExperts: 5-branch UNION query, positional
 // path reconstruction, provenance on every basis event, and
 // expertise/v1 ranking (owner-first even when out-scored).

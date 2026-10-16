@@ -104,9 +104,12 @@ func TestLoadValidBatches(t *testing.T) {
 	}
 }
 
-// A window endpoint with a non-UTC offset is accepted: RFC3339 carries an
-// instant, and query-time comparisons are instant comparisons.
-func TestLoadEdgesAcceptsOffsetInstant(t *testing.T) {
+// A window endpoint with a non-UTC offset is accepted and rewritten to
+// canonical RFC3339 UTC: FalkorDB has no datetime(), so as-of predicates
+// compare windows as strings, and only canonical same-format strings
+// order lexically as chronologically. 05:30+05:30 and 00:00Z are the
+// same instant and must store as the same value.
+func TestLoadEdgesNormalizesOffsetToUTC(t *testing.T) {
 	c := newTestClient(t)
 	mustLoadNodes(t, c, "Person", []map[string]interface{}{nodeRow("person:ada")})
 	mustLoadNodes(t, c, "Team", []map[string]interface{}{nodeRow("team:core")})
@@ -120,6 +123,16 @@ func TestLoadEdgesAcceptsOffsetInstant(t *testing.T) {
 	}
 	if n := edgeCount(t, c); n != 1 {
 		t.Fatalf("edges = %d, want 1", n)
+	}
+	res, err := c.g.ROQuery(`MATCH ()-[r:WORKS_IN]->() RETURN r.valid_from AS valid_from`, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Next() {
+		t.Fatal("WORKS_IN edge missing after load")
+	}
+	if got := field(res.Record(), "valid_from"); got != "2026-01-01T00:00:00Z" {
+		t.Errorf("valid_from = %q, want normalized 2026-01-01T00:00:00Z", got)
 	}
 }
 
