@@ -44,6 +44,11 @@ func allowed(set []string, s string) bool {
 // edge (time lives on the event node) and must not carry valid_to.
 var stateRelations = []string{"WORKS_IN", "OWNS", "WORKED_ON", "HAS_REPO", "DEPENDS_ON"}
 
+// IsStateRelation reports whether rel carries a valid-time window
+// (docs/SCHEMA.md §4.1) — the only relations E6 contradiction detection
+// inspects, and the only valid `relation` filter for FindConflicts.
+func IsStateRelation(rel string) bool { return allowed(stateRelations, rel) }
+
 // factProvenance is the minimum required provenance on every fact node
 // and edge. valid_from/valid_to are conditional on relation kind and are
 // validated separately.
@@ -107,18 +112,27 @@ func validateEdge(rel string, r EdgeRow) error {
 	if !allowed(stateRelations, rel) && validTo != "" {
 		return fmt.Errorf("%s edge %s->%s: event/evidence relation must not carry %q", rel, r.From, r.To, "valid_to")
 	}
-	if validFrom != "" && validTo != "" {
-		vf, err := time.Parse(time.RFC3339, validFrom)
+	// Each window endpoint present is parsed on its own: a malformed
+	// valid_from must fail even when valid_to is absent (query code would
+	// otherwise misread the window), and offsets are accepted because every
+	// comparison is an instant comparison, not a string compare.
+	var vf, vt time.Time
+	if validFrom != "" {
+		t, err := time.Parse(time.RFC3339, validFrom)
 		if err != nil {
 			return fmt.Errorf("%s edge %s->%s: valid_from %q is not RFC3339: %w", rel, r.From, r.To, validFrom, err)
 		}
-		vt, err := time.Parse(time.RFC3339, validTo)
+		vf = t
+	}
+	if validTo != "" {
+		t, err := time.Parse(time.RFC3339, validTo)
 		if err != nil {
 			return fmt.Errorf("%s edge %s->%s: valid_to %q is not RFC3339: %w", rel, r.From, r.To, validTo, err)
 		}
-		if vt.Before(vf) {
-			return fmt.Errorf("%s edge %s->%s: valid_to %s is before valid_from %s", rel, r.From, r.To, validTo, validFrom)
-		}
+		vt = t
+	}
+	if validFrom != "" && validTo != "" && vt.Before(vf) {
+		return fmt.Errorf("%s edge %s->%s: valid_to %s is before valid_from %s", rel, r.From, r.To, validTo, validFrom)
 	}
 	return nil
 }

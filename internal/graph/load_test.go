@@ -104,6 +104,25 @@ func TestLoadValidBatches(t *testing.T) {
 	}
 }
 
+// A window endpoint with a non-UTC offset is accepted: RFC3339 carries an
+// instant, and query-time comparisons are instant comparisons.
+func TestLoadEdgesAcceptsOffsetInstant(t *testing.T) {
+	c := newTestClient(t)
+	mustLoadNodes(t, c, "Person", []map[string]interface{}{nodeRow("person:ada")})
+	mustLoadNodes(t, c, "Team", []map[string]interface{}{nodeRow("team:core")})
+
+	props := edgeProps()
+	props["valid_from"] = "2026-01-01T05:30:00+05:30" // == 2026-01-01T00:00:00Z
+	if err := c.LoadEdges("WORKS_IN", []EdgeRow{
+		{From: "person:ada", To: "team:core", Props: props},
+	}); err != nil {
+		t.Fatalf("offset valid_from should be accepted: %v", err)
+	}
+	if n := edgeCount(t, c); n != 1 {
+		t.Fatalf("edges = %d, want 1", n)
+	}
+}
+
 // Every node-batch violation is rejected and writes nothing.
 func TestLoadNodesRejectsInvalidBatch(t *testing.T) {
 	c := newTestClient(t)
@@ -163,6 +182,13 @@ func TestLoadEdgesRejectsInvalidBatch(t *testing.T) {
 	reversed := edgeProps()
 	reversed["valid_from"] = "2026-06-01T00:00:00Z"
 	reversed["valid_to"] = "2026-01-01T00:00:00Z"
+	// A malformed valid_from with no valid_to must still fail: parsing is
+	// per-endpoint, not conditional on valid_to being present.
+	badFromAlone := edgeProps()
+	badFromAlone["valid_from"] = "2026-01-01"
+	badTo := edgeProps()
+	badTo["valid_from"] = "2026-01-01T00:00:00Z"
+	badTo["valid_to"] = "whenever"
 
 	cases := []struct {
 		name  string
@@ -173,6 +199,8 @@ func TestLoadEdgesRejectsInvalidBatch(t *testing.T) {
 		{"state edge without valid_from", "WORKS_IN", stateNoFrom, "requires"},
 		{"event edge with valid_to", "AUTHORED", eventWithTo, "must not carry"},
 		{"valid_to before valid_from", "WORKS_IN", reversed, "before valid_from"},
+		{"malformed valid_from without valid_to", "WORKS_IN", badFromAlone, "valid_from"},
+		{"malformed valid_to", "WORKS_IN", badTo, "valid_to"},
 	}
 	for _, f := range factProvenance {
 		props := edgeProps()
