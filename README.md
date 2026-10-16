@@ -1,106 +1,133 @@
-# TRON
+# TRON — Trusted Reasoning & Organizational Nexus
 
-**Trusted Reasoning & Organizational Nexus**
+**Graph Hacks 2026 · Track 03: Company Brain**
 
-[![Status](https://img.shields.io/badge/Status-Active%20Development-brightgreen.svg)](docs/architecture-minimal.md)
-[![Hackathon](https://img.shields.io/badge/Hackathon-Graph%20Hacks%3A%20Context%20for%20AI%20Agents-blue.svg)](https://wemakedevs.org/hackathons/falkordb-graph-hacks)
+TRON connects people, teams, services, code contributions, documents, chats, tickets, incidents, and decisions in FalkorDB. Ask who owns a service, who has relevant experience, why a decision was made, or who should investigate an incident. Every supported answer returns graph operations, evidence paths, and inspectable source records.
 
-## Status
+The agent uses deterministic routing across five workflows. It needs no LLM or API key. It resolves names from the graph, asks for clarification when ambiguous, runs bounded graph operations, and separates facts, computed inferences, and recommendations. Removing FalkorDB removes the facts and relationships needed to answer.
 
-**ACTIVE DEVELOPMENT** — architecture is locked: Go + FalkorDB,
-five-layer knowledge model, graph operation boundary.
-See [docs/architecture-minimal.md](docs/architecture-minimal.md),
-[docs/knowledge-model.md](docs/knowledge-model.md), and
-[planning/decision-log.md](planning/decision-log.md).
-Graph operations land incrementally, each backed by a real-FalkorDB test.
+## Start with Docker only
 
-## Vision
+Install Docker Desktop (Windows/macOS) or Docker Engine with Compose (Linux), then:
 
-TRON aims to build a **Company Brain** that understands how an organization works by connecting people, teams, projects, services, systems, documents, tickets, incidents, decisions, meetings, engineering activity, expertise, and ownership into a unified graph.
-
-The intelligence is graph-native: FalkorDB is the primary graph database and the reasoning is driven by multi-hop traversals with explicit provenance, not just retrieval.
-
-## Target Track
-
-**Primary**: [TRACK 03 — COMPANY BRAIN](https://wemakedevs.org/hackathons/falkordb-graph-hacks)
-
-**Potential Secondary**: TRACK 01 (Agents That Act on Connected Data), TRACK 02 (Agent Memory and Coordination)
-
-## Core Problem
-
-Existing RAG approaches lose organizational context and relationship structure. A graph is necessary because organizational knowledge is relational (who knows what, why decisions were made, who owns what, what happened before) and requires multi-hop reasoning with evidence paths.
-
-## Key Differentiator
-
-Graph-central reasoning with provenance. Remove FalkorDB and the product's core reasoning capability is materially affected.
-
-## Documentation
-
-Full index and authority map: [**docs/README.md**](docs/README.md).
-
-Canonical documents:
-
-- [Product Requirements (PRD)](docs/PRD.md)
-- [Target Architecture](docs/TECHSPEC.md)
-- [Knowledge Model](docs/SCHEMA.md)
-- [Ingestion](docs/INGESTION.md)
-- [Reasoning](docs/REASONING.md)
-- [Actions](docs/ACTIONS.md)
-- [Application Flows](docs/APPFLOW.md)
-- [Security](docs/SECURITY.md)
-- [Evaluation](docs/EVALUATION.md)
-- [Engineering Rules & Risks](docs/RULES.md)
-- [Implementation Roadmap](docs/IMPLEMENTATIONPLAN.md)
-- [Status Tracker](docs/TRACKER.md)
-
-Locked current-state authorities: [architecture-minimal.md](docs/architecture-minimal.md),
-[GRAPH_MODEL.md](docs/GRAPH_MODEL.md), [knowledge-model.md](docs/knowledge-model.md),
-[AGENT_SPEC.md](docs/AGENT_SPEC.md), [decision-log.md](planning/decision-log.md).
-Historical/hackathon-era docs are marked superseded; see the index.
-
-## Build Status
-
-- [x] Repository structure
-- [x] Engineering constraints defined
-- [x] Planning foundation documented
-- [x] Architecture lock (stack, knowledge model, graph schema)
-- [x] Go scaffold: FalkorDB client + FindOwner (real-DB test)
-- [x] FindExperts with deterministic expertise/v1 scoring (real-DB test)
-- [x] TraceDecision: decision provenance neighborhood (real-DB test)
-- [x] FindRelatedIncidents: temporal + literal keyword filtering (real-DB test)
-- [x] TraceEvidence: full refetch + 1-hop provenance drill-down (real-DB test)
-- [x] ResolveEntity: deterministic internal resolver (exact key → exact name → case-insensitive → prefix)
-- [x] All five graph operations implemented with real-DB tests
-- [x] Seed data generator: deterministic `internal/seed` + `tron seed` (five-query connectivity contract tested)
-- [x] JSON API layer: read-only `internal/api` over all six ops (`tron serve`, real-DB HTTP contract test)
-- [x] Contradiction detection (E6 v1): read-only `POST /v1/conflicts` over `graph.FindConflicts` (state relations, `OWNS` exclusive; real-DB tests)
-- [x] Temporal as-of queries (E5): optional `as_of` on `FindOwner`/`FindExperts` + `POST /v1/owner`/`/v1/experts`; half-open windows, canonical-UTC normalization (real-DB tests)
-- [x] Agent loop: deliberate-retrieval core with provider-agnostic `Decide` seam (`internal/agent`, scripted + real-graph tests)
-- [x] Q&A UI: server-rendered five built-in questions with evidence panels (`internal/ui`, claim-envelope validation)
-- [x] Demo verification: `tron demo` runs all five scenarios + temporal as-of + evidence drill-down as pass/fail checks
-
-## Quick Start
-
-```bash
-docker compose up -d                          # FalkorDB on :6379
-go run ./cmd/tron seed                        # synthetic graph (destructive reseed)
-go run ./cmd/tron demo                        # verify the five demo scenarios (exit != 0 on failure)
-go run ./cmd/tron serve                       # UI at http://127.0.0.1:8080/ (JSON API at /v1)
-curl -s http://127.0.0.1:8080/v1/owner -d '{"target":"payments-api"}'
+```sh
+git clone https://github.com/Shashwat-911/tr0n-shashwat.git
+cd tr0n-shashwat
+docker compose up -d --wait falkordb
+docker compose build app
+docker compose run --rm app seed
+docker compose up -d app
 ```
 
-Open `http://127.0.0.1:8080/` for the five built-in questions with
-evidence panels — no LLM required. `TRON_FALKOR_ADDR` (default `localhost:6379`) and `TRON_HTTP_ADDR`
-(default `127.0.0.1:8080`) override the endpoints. `go test ./... -short`
-runs the pure tests without Docker; drop `-short` for the full
-real-FalkorDB suite.
+Open **[TRON at localhost:8080](http://127.0.0.1:8080)**. FalkorDB Browser is available at [localhost:3000](http://127.0.0.1:3000). The database image is pinned by digest, has a health check, and persists data in a named volume with append-only logging. `seed` replaces only the `tron` graph; use it only for the disposable synthetic demo.
 
----
+To verify the running graph:
 
-**Architecture is locked** — see
-[docs/architecture-minimal.md](docs/architecture-minimal.md) and
-[planning/decision-log.md](planning/decision-log.md). Older hackathon-era
-documents (e.g. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[docs/HACKATHON.md](docs/HACKATHON.md)) are retained for history and
-marked as superseded where they conflict.
+```sh
+docker compose run --rm app demo
+```
 
+To stop the app and database while retaining the graph: `docker compose down`. Run `docker compose up -d app` to resume. Do not use `down -v` unless you intend to discard the persisted demo data.
+
+## Run with Go
+
+Go 1.26.5 or newer is required. Start FalkorDB first, then:
+
+```sh
+go run ./cmd/tron seed
+go run ./cmd/tron serve
+```
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `TRON_FALKOR_ADDR` | `localhost:6379` | FalkorDB address |
+| `TRON_HTTP_ADDR` | `127.0.0.1:8080` | HTTP bind address |
+
+The local server and Docker host ports bind to loopback. This submission is a single-company local demo; it does not include public hosting, authentication, tenant isolation, or private-source integrations.
+
+## The five workflows
+
+| Ask | What FalkorDB does |
+|---|---|
+| Who owns the Payments service? | Resolves a service and reads valid `OWNS` edges with provenance |
+| Who knows Payments best? | Follows PR → repository → service, document authorship, incident resolvers, and ownership; computes `expertise/v1` |
+| Why did we choose Redis over Kafka? | Reads recorded rationale and follows supporting ADR, chat, ticket, and meeting records |
+| Has payments-api timed out before? | Follows `Incident → AFFECTS → Service` and `RESOLVED_BY`; optional literal timeout filtering |
+| Prepare a handoff for payments-api timeout investigation | Combines ownership, ranked expertise, and history into a downloadable, unsent Markdown draft |
+
+Choose a context for follow-ups such as “Who knows it best?”. The optional date queries historical ownership. For expertise it filters **ownership only**; scores use the recorded activity and current recency, not a complete historical snapshot. Ownership conflicts block selection of a handoff lead. Source observation timestamps are displayed for review; there is no universal staleness threshold.
+
+## Keep knowledge current
+
+The repo includes two allowed synthetic source records. Import them with explicit identity mappings:
+
+```sh
+go run ./cmd/tron import examples/sources.json
+go run ./cmd/tron import examples/sources.json
+```
+
+The second run reports zero changes. Modify the source body and advance `observed_at` to refresh it; the importer updates the document and replaces its own authorship/topic links in one graph mutation. It rejects missing identities, identity/source collisions, and stale observations. Kinds include `adr`, `runbook`, `spec`, `note`, `chat`, and `ticket`, represented as `Document` artifacts. This is a structured file import, not automatic extraction from arbitrary text. Each record is atomic; if a batch fails, prior completed records remain and a corrected batch can safely be retried.
+
+Record a sourced ownership change while retaining the previous validity window:
+
+```sh
+go run ./cmd/tron owner-set service:payments-api person:2 synthetic/registry/ownership-change
+```
+
+Refresh the ownership answer, then use an earlier date to see the previous owner. Repeating the same owner is a no-op. Use `seed` to restore the original fictional demo after experimenting.
+
+## Graph data model and queries
+
+The seed contains **339 nodes across 11 labels** and **958 relationships across 16 types**. All data is fictional. People connect to teams, projects, PRs, documents, and incidents. Services connect to repositories, technologies, owners, and dependencies. Decisions connect to source artifacts, authors, meetings, and superseded decisions.
+
+```mermaid
+flowchart LR
+  Person -->|AUTHORED / REVIEWED| PullRequest
+  PullRequest -->|MODIFIED| Repository
+  Service -->|HAS_REPO| Repository
+  Person -->|OWNS| Service
+  Incident -->|AFFECTS| Service
+  Incident -->|RESOLVED_BY| Person
+  Decision -->|SUPPORTED_BY| Document
+  Document -->|ABOUT| Service
+  Decision -->|DISCUSSED_IN| Meeting
+```
+
+See [the full graph model](docs/GRAPH_MODEL.md), [query catalog](docs/CYPHER_QUERIES.md), and [executable Cypher](internal/graph/graph.go). Expertise weights and recency decay live in [expertise.go](internal/knowledge/expertise.go). Ownership receives priority; scores are evidence-based ranking signals, not probabilities or validated measures of employee performance.
+
+## API
+
+`GET /v1/health` checks the graph; `GET /v1/catalog` supplies selectable identities. `POST /v1/ask` accepts:
+
+```json
+{"question":"Why did we choose Redis over Kafka?"}
+```
+
+Optional fields: `target` (exact key/name) and `as_of` (RFC3339, ownership/expertise only). Responses include `answer`, layered `claims`, `operations_used`, `latency_ms`, `evidence`, `warnings`, optional `candidates`, and an optional `handoff` draft. Unsupported questions abstain. No HTTP endpoint executes a write action.
+
+The seven lower-level read endpoints remain available: `/v1/owner`, `/v1/experts`, `/v1/decision`, `/v1/incidents`, `/v1/evidence`, `/v1/resolve`, and `/v1/conflicts`. See [the operation contracts](docs/AGENT_SPEC.md).
+
+## Verification
+
+```sh
+go test ./... -short       # pure checks, no database required
+go test ./...              # all checks against real FalkorDB
+go vet ./...
+go run ./cmd/tron demo     # seven graph checks, nonzero exit on failure
+```
+
+Integration tests use dedicated `tron_*_test` graphs and remove them afterwards. New coverage includes question routing and abstention, all five question workflows, source import idempotency/update behavior, ownership changes and historical boundaries, duplicate identity rejection, request validation, and bounded agent calls.
+
+## Submission
+
+- **Track:** Track 03 — Company Brain.
+- **Source and local setup:** this repository and the commands above.
+- **Graph model and queries:** linked above.
+- **Demo:** [60-second captioned walkthrough](artifacts/demo/tron-walkthrough.mp4), assembled from screenshots of the running app; [recording script](docs/DEMO_SCRIPT.md) for a narrated live demonstration. [Direct video download](https://raw.githubusercontent.com/Shashwat-911/tr0n-shashwat/main/artifacts/demo/tron-walkthrough.mp4). Review the walkthrough before submitting; a narrated live demo is recommended.
+- **AI disclosure:** Codex assisted with implementation, debugging, tests, UI, and documentation. Participants must review and understand the graph model, queries, scoring, and technical decisions, and disclose their own contribution accurately.
+
+The larger production roadmap in `docs/` includes optional future work. This local competition build does not claim general-purpose natural-language reasoning, live Slack/GitHub synchronization, autonomous external actions, or production security.
+
+### Contribution history
+
+The original team history is preserved. The completion work is organized into 13 reviewable commits; see [the change guide](docs/COMPLETION_STEPS.md). These commits organize the completed work by feature, not a claim of separate development sessions.
