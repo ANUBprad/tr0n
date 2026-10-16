@@ -49,22 +49,26 @@ query, never variable-length to infinity.
 - **Answers**: "Who owns this?"
 
 **Current implementation** (`internal/graph/graph.go` `FindOwner`): takes a
-single `target` key or name and returns **current owners only** (`OWNS` edges
-with `valid_to IS NULL`). There is **no `as_of` argument and no historical
-(as-of) query**, and `current: bool` is not returned. Those are **PROPOSED**
-(amended 2026-10-13): temporal as-of correctness is an outstanding M1
-criterion (`IMPLEMENTATIONPLAN.md`, `TRACKER.md`). The bullets above state the
-intended contract, not shipped behavior.
+`target` key or name and an optional `as_of` instant. With no `as_of` it
+returns **current owners only** (`OWNS` edges with `valid_to IS NULL`); with
+`as_of` it returns owners valid at that instant under the half-open rule
+(`valid_from <= as_of AND (valid_to IS NULL OR valid_to > as_of)`), so a
+superseded handoff is queryable. Every returned `Owner` carries the edge's
+provenance including `valid_from`. `current: bool` is still **not** returned.
+IMPLEMENTED 2026-10-16 (`internal/graph` `TestFindOwnerAsOf`, `internal/api`
+`TestEndpoints/owner`, `internal/seed` `TestSeedServesFiveQueries/find_owner`).
 
 ### FindExperts
 
-- **Input**: service `key`; `limit` (default 5); injected `now`
+- **Input**: service `key`; `limit` (default 5); injected `now`; optional
+  `as_of` (ownership is judged at this instant; `now` still drives recency
+  decay, so the two are independent)
 - **Output**: ranked persons with `score`, `current_owner: bool`,
   `top_signals` (counts per class), `basis` (the fact paths used),
   `rule_id` (`expertise/v1`), weights version
 - **Traversal**: the four signal patterns from `knowledge-model.md`
-  (authored PRs, reviewed PRs, resolved incidents, authored docs) + current
-  `OWNS`
+  (authored PRs, reviewed PRs, resolved incidents, authored docs) + `OWNS`
+  (current, or valid at `as_of`)
 - **Deterministic logic**: weights × recency decay × sort; pure function of
   (graph, clock)
 - **Provenance returned**: every basis path is a fact path with edge

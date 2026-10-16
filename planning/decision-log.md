@@ -70,13 +70,28 @@ only with real code and passing tests).
 |---|---|---|
 | `FindConflicts(relation, key)` — `contradiction/v1`, state relations only, `OWNS` exclusive per target, half-open overlap, deterministic group/member order, per-edge provenance, derived at query time (never stored, A9) | `internal/graph/graph.go` | `internal/graph/graph_test.go` `TestFindConflicts` |
 | Read-only `POST /v1/conflicts` — empty = `200 {"conflicts":[]}`, unknown `relation` = 400 | `internal/api/api.go` | `internal/api/api_test.go` `TestEndpoints/conflicts` |
-| Window validation hardened: `valid_from`/`valid_to` parsed independently (a malformed `valid_from` with no `valid_to` is now rejected); RFC3339 offsets accepted (instant comparison, not string) | `internal/graph/load.go` `validateEdge` | `internal/graph/load_test.go` |
+| Window validation hardened: `valid_from`/`valid_to` parsed independently (a malformed `valid_from` with no `valid_to` is now rejected); RFC3339 offsets accepted (parsed per endpoint) | `internal/graph/load.go` `validateEdge` | `internal/graph/load_test.go` |
 | `recProvenance`/`provFrom` carry `valid_to` | `internal/graph/graph.go` | `TestFindConflicts` provenance assertions |
 
 Baseline seed yields zero conflicts (no false positives); a missing or
 unparseable `valid_from` on a state edge is omitted from detection, never
-treated as always-valid. E5 (temporal as-of querying) remains **PROPOSED** —
-out of the E6 slice.
+treated as always-valid. (E5 temporal as-of querying was out of the E6 slice
+and PROPOSED at that time; it has since landed — see the next section.)
+
+### E5 implementation landed (2026-10-16)
+
+E5 (temporal as-of querying) is now **IMPLEMENTED**. The locked predicate and
+half-open intervals (see the interval decision above, `SCHEMA.md` §5) are
+unchanged; this records the design choices the code needed. Evidence:
+`internal/graph` `TestFindOwnerAsOf`/`TestFindExpertsAsOf`/
+`TestLoadEdgesNormalizesOffsetToUTC`, `internal/api` `TestEndpoints/owner`
++`/experts`, `internal/seed` `TestSeedServesFiveQueries/find_owner`.
+
+| Decision | Why | Alternatives | Tradeoffs / limitations | Status |
+|---|---|---|---|---|
+| **Window endpoints are normalized to canonical RFC3339 UTC (`…Z`) on write** | FalkorDB has no `datetime()` function (verified against the running server), so as-of predicates compare windows as **strings**; only canonical same-format strings order lexically the same as chronologically (an offset like `05:30+05:30` would otherwise sort after a later `Z` instant) | Store offsets as sent; keep a numeric epoch property; upgrade the DB | Rewrites the source's offset to UTC, so the *stored* string differs from the input offset (the instant is preserved). `internal/graph/load.go` `validateEdge`, `TestLoadEdgesNormalizesOffsetToUTC` | DECIDED (normalization) |
+| **Omitted `as_of` uses a far-future sentinel (`9999-12-31T23:59:59Z`)** | One parameterized query serves both current and historical reads: at a far-future instant the half-open predicate is exactly `valid_to IS NULL`, so current-only behavior is preserved with no null/bool branch | `WHERE $as_of IS NULL OR …`; two separate queries | The sentinel is a magic value (documented in `internal/graph/graph.go` `openEndedAsOf`); any real `as_of` before year 9999 is unaffected | DECIDED (default) |
+| **`as_of` is exposed read-only on `/v1/owner` and `/v1/experts` only; variadic so existing callers are unchanged** | These are the two read ops that surface ownership validity. Event reads (e.g. incidents) keep event-time; mixing them would conflate validity-time with event-time | Add `as_of` to incidents/decision; a new dedicated as-of op | Only ownership is as-of-queryable in v1 (documented ceiling); malformed `as_of` → 400 | DECIDED (scope) |
 
 ## Notes
 New decisions must be added here. Mark as DECIDED only after team consensus during/at hackathon start.

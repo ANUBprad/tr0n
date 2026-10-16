@@ -67,7 +67,7 @@ Convention: `tron <group> <verb> [args]`. ✅ = exists today; ⏳ = proposed.
 ### 2.5 Demo & diagnostics
 | Command | Purpose | Inputs | Outputs | Errors | Permission | Status |
 |---|---|---|---|---|---|---|
-| `tron demo` | Run 5 scenarios + evidence as pass/fail | — | `[ok]/[FAIL]` lines | non-zero on failure | read | ✅ |
+| `tron demo` | Run 5 scenarios + temporal as-of + evidence as pass/fail | — | `[ok]/[FAIL]` lines | non-zero on failure | read | ✅ |
 | `tron serve` | Serve UI + JSON API | `TRON_HTTP_ADDR` | listening banner | bind failure | — | ✅ |
 | `tron doctor` | Check FalkorDB, version, graph, indexes | — | diagnostics | connectivity | read | ⏳ |
 | `tron eval` | Run the evaluation suite | suite name | metrics | eval config | read | ⏳ |
@@ -79,8 +79,8 @@ read-only; strict JSON (unknown fields rejected), 1 MiB body cap.
 
 | Endpoint | Body | Returns | Status |
 |---|---|---|---|
-| `POST /v1/owner` | `{target}` | `Owner[]` | ✅ |
-| `POST /v1/experts` | `{service_key, limit?, now?}` | `ExpertiseResult` (INFERENCE) | ✅ |
+| `POST /v1/owner` | `{target, as_of?}` | `Owner[]` | ✅ |
+| `POST /v1/experts` | `{service_key, limit?, now?, as_of?}` | `ExpertiseResult` (INFERENCE) | ✅ |
 | `POST /v1/decision` | `{ref}` | `DecisionTrace` \| 404 | ✅ |
 | `POST /v1/incidents` | `{service_key, since?, keywords?}` | `IncidentRef[]` | ✅ |
 | `POST /v1/evidence` | `{keys[]}` | `NodeEvidence[]` | ✅ |
@@ -100,6 +100,11 @@ as the other read ops — unknown fields rejected, read-only. Empty result is
 success (`200` with `{"conflicts": []}`), not 404; an unknown `relation`
 value is a 400. Contract detail in `AGENT_SPEC.md`, decision in
 `planning/decision-log.md`.
+
+**`as_of` on `/v1/owner` and `/v1/experts` (E5, IMPLEMENTED 2026-10-16)**:
+optional RFC3339 instant; a malformed value is a 400. It selects the validity
+instant (`valid_from <= as_of < valid_to`); omitted means current state. Not
+offered on event reads (e.g. incidents) — events carry their own timestamp.
 
 ## 4. Web UI
 

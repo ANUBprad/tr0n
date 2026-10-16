@@ -39,7 +39,7 @@ cost/latency — the parts that don't exist yet.
 | E2 | **Multi-hop graph queries** | fixtures answerable only via ≥3 hops | the product thesis, as a test | PARTIAL (seed contract test) |
 | E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PROPOSED |
 | E4 | **Citation support** | answers + their claims | every claim cites a valid path (`Answer.Validate`) | IMPLEMENTED (structural) |
-| E5 | **Temporal accuracy** | time-shifted fixtures (owner 2026 vs 2027) | correct as-of results | PROPOSED (temporal as-of querying and time-shifted fixtures absent) |
+| E5 | **Temporal accuracy** | time-shifted fixtures (owner 2026 vs 2027) | correct as-of results | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindOwnerAsOf`/`TestFindExpertsAsOf`, `internal/graph` `TestLoadEdgesNormalizesOffsetToUTC`, `internal/api` `TestEndpoints/owner`+`/experts`, seed handoff fixture; see §2.2 |
 | E6 | **Contradiction detection** | injected conflicting state-relation claims (overlapping half-open windows) + non-conflicting decoys | both surfaced, none hidden; nothing extra flagged | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindConflicts`, `internal/api` `TestEndpoints/conflicts`; scope decided 2026-10-15, see §2.1 |
 | E7 | **Permission enforcement** | facts with differing scopes | no derived leakage | PROPOSED |
 | E8 | **Recommendation quality** | scenarios rated by humans | useful/correct vs baseline | PROPOSED |
@@ -75,6 +75,36 @@ under `-short`:
 - exposure via `POST /v1/conflicts`: invalid `relation` → 400, empty result →
   `200 {"conflicts":[]}`, deterministic ordering of groups and members;
 - runs against live FalkorDB like the other op suites (skipped under `-short`).
+
+### 2.2 E5 scope and v1 checklist (implemented 2026-10-16)
+
+Predicate is the locked half-open rule (`SCHEMA.md` §5):
+`valid_from <= as_of AND (valid_to IS NULL OR valid_to > as_of)`. FalkorDB
+has no `datetime()` function (verified against the running server), so
+windows compare as canonical RFC3339 UTC strings; the loader normalizes every
+`valid_from`/`valid_to` to that form on write, and an omitted `as_of` uses a
+far-future sentinel that reproduces `valid_to IS NULL` exactly. Scope: the
+two state reads that expose ownership — `FindOwner` and the `OWNS` branch of
+`FindExperts`; **event** reads (e.g. incidents) stay event-time, never
+validity-time.
+
+Runnable suite demonstrates — `TestFindOwnerAsOf` / `TestFindExpertsAsOf`
+(`internal/graph`), `TestLoadEdgesNormalizesOffsetToUTC` (`internal/graph`),
+`TestEndpoints/owner` + `TestEndpoints/experts` (`internal/api`), all
+real-FalkorDB and skipped under `-short`:
+
+- `valid_from` is inclusive (as-of its instant returns the owner),
+  `valid_to` is exclusive (as-of its instant returns nobody that era);
+- a gap between eras returns no owner; an open-ended window
+  (`valid_to IS NULL`) holds for every `as_of` after its `valid_from`;
+- an instant before every window returns nobody;
+- omitting `as_of` returns exactly the current owner (unchanged behavior);
+- a non-UTC offset and its UTC equivalent store as the **same** value, so the
+  lexicographic comparison is chronologically correct;
+- historical reads still ship full provenance; `as_of` ranks ownership in
+  `FindExperts` while `now` still drives decay;
+- `POST /v1/owner` and `/v1/experts` accept optional `as_of`; malformed →
+  400.
 
 ## 3. Baselines and comparison
 

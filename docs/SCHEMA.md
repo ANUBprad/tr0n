@@ -186,6 +186,12 @@ Rules:
 - **Update = close + open.** Never rewrite a fact. Set `valid_to` on the old
   edge, insert a new edge (`knowledge-model.md`).
 - **As-of queries**: `valid_from <= $t AND (valid_to IS NULL OR valid_to > $t)`.
+  IMPLEMENTED (2026-10-16) as an optional `as_of` on `FindOwner`/`FindExperts`
+  and `POST /v1/owner`/`/v1/experts`; omitted `as_of` = current state. FalkorDB
+  has no `datetime()`, so windows are compared as strings, and the loader
+  normalizes every endpoint to canonical RFC3339 UTC on write
+  (`internal/graph/load.go` `validateEdge`) so the string order matches the
+  chronological order.
 - **Intervals are half-open `[valid_from, valid_to)`.** An instant equal to
   `valid_to` belongs to the next interval, so intervals that only touch at an
   endpoint (`valid_to == next valid_from`) do **not** overlap — a close+open

@@ -237,7 +237,7 @@ Full autonomy levels, idempotency, and audit requirements are in
 
 | Concern | Where specified | Current state |
 |---|---|---|
-| Provenance & temporal validity | `knowledge-model.md`, [`SCHEMA.md`](SCHEMA.md) | IMPLEMENTED on edges/nodes |
+| Provenance & temporal validity | `knowledge-model.md`, [`SCHEMA.md`](SCHEMA.md) | IMPLEMENTED on edges/nodes; as-of reads implemented (E5, `FindOwner`/`FindExperts` + `/v1/owner`/`/v1/experts`) |
 | Layered claims (no silent promotion) | `knowledge-model.md`, `internal/knowledge/answer.go` | IMPLEMENTED |
 | Permissions & tenant isolation | [`SECURITY.md`](SECURITY.md) | PROPOSED (loopback only today) |
 | Observability | [`EVALUATION.md`](EVALUATION.md) | PARTIAL |

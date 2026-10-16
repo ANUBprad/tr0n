@@ -27,7 +27,7 @@ implementation to the target organizational brain.
 - **Test strategy**: real-FalkorDB op tests, provenance/layering invariants,
   seed determinism + connectivity contract, `tron demo` pass/fail.
   (CONFIRMED: 10 test files.)
-- **Acceptance**: `tron demo` passes 6/6; architecture locked in decision-log.
+- **Acceptance**: `tron demo` passes 7/7; architecture locked in decision-log.
 - **Definition of done**: **MET** (verify with `go test ./...` and `tron demo`).
 - **Risks / deferred**: stale `.tron_audit.md`; hackathon-era docs coexist —
   resolved by banners + [`README.md`](README.md) index (this task).
@@ -58,16 +58,27 @@ implementation to the target organizational brain.
   `TestEndpoints/conflicts`) and loader window-validation hardening
   (`internal/graph/load.go` `validateEdge`). Baseline seed yields zero false
   positives.
+- **Progress (2026-10-16)**: E5 slice landed — optional `as_of` on
+  `FindOwner`/`FindExperts` and `POST /v1/owner`/`/v1/experts` (half-open
+  predicate `valid_from <= as_of AND (valid_to IS NULL OR valid_to > as_of)`,
+  FalkorDB has no `datetime()` so windows compare as canonical strings); the
+  loader now normalizes `valid_from`/`valid_to` to RFC3339 UTC on write, and
+  the seed carries a deterministic ownership handoff on `payments-api`. Tests:
+  `internal/graph` `TestFindOwnerAsOf`/`TestFindExpertsAsOf`/
+  `TestLoadEdgesNormalizesOffsetToUTC`, `internal/api` `TestEndpoints/owner`
+  +`/experts`, `internal/seed` `TestSeedServesFiveQueries/find_owner`.
 - **Test strategy**: E1 (resolution), E5 (temporal), E6 (contradiction),
   provenance invariants extended.
 - **Acceptance (target)**: as-of queries correct on time-shifted fixtures;
   injected contradictions surfaced (not hidden); duplicate identity yields
   candidates, never a wrong merge.
 - **Outstanding — not met (2026-10-15)**:
-  - **Temporal as-of correctness** — state ops (e.g. `FindOwner`) return
-    current state only; no `as_of` parameter and no historical query exist.
-    `valid_from`/`valid_to` are validated at write but never queried as-of.
-    No time-shifted fixtures. E5 is **PROPOSED** (not PARTIAL/evidenced).
+  - **Temporal as-of correctness** — **MET (2026-10-16)**: `FindOwner` and the
+    `OWNS` branch of `FindExperts` take an optional `as_of` (half-open
+    `valid_from <= as_of < valid_to`); the loader normalizes windows to
+    canonical UTC so the string predicate is chronologically correct; an
+    omitted `as_of` preserves current-only behavior; `/v1/owner` and
+    `/v1/experts` expose it. E5 is **IMPLEMENTED** (evidence below).
   - **Contradiction surfacing** — **MET (2026-10-16)**: `graph.FindConflicts`
     derives incompatible state-relation claims at query time and
     `POST /v1/conflicts` exposes them; E6 is **IMPLEMENTED** (evidence below).
@@ -75,9 +86,22 @@ implementation to the target organizational brain.
     `key` uniqueness requirement is **not** database-enforced (non-unique
     index; loader in-batch check only), *decided deferral, not an open
     question* (2026-10-15). E1 is **PARTIAL**.
-  - **Evidence** — E6 suite green (2026-10-16: `TestFindConflicts`,
-    `TestEndpoints/conflicts`, `load_test.go` window cases); E1/E5 still lack
-    runnable as-of/identity fixtures.
+  - **Evidence** — E5/E6 suites green (2026-10-16: `TestFindOwnerAsOf`,
+    `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`,
+    `TestFindConflicts`, `TestEndpoints/conflicts`, `load_test.go`); E1 still
+    lacks a runnable identity fixture.
+- **Delivered — E5 (2026-10-16)**:
+  1. ✅ `internal/graph`: optional `as_of` on `FindOwner`/`FindExperts` +
+     half-open predicate + far-future sentinel default; `TestFindOwnerAsOf`,
+     `TestFindExpertsAsOf`.
+  2. ✅ `internal/graph`: `validateEdge` rewrites `valid_from`/`valid_to` to
+     RFC3339 UTC; `TestLoadEdgesNormalizesOffsetToUTC`.
+  3. ✅ `internal/api`: optional `as_of` (RFC3339; malformed → 400) on
+     `POST /v1/owner` + `/v1/experts`; `TestEndpoints/owner`+`/experts`.
+  4. ✅ `internal/seed`: deterministic `payments-api` ownership handoff
+     (person:2 → person:1); `TestSeedServesFiveQueries/find_owner`; demo check 6.
+  5. ✅ Statuses flipped in `TRACKER.md`/`EVALUATION.md`/`AGENT_SPEC.md` after
+     the tests passed.
 - **Delivered — E6 (2026-10-16)**:
   1. ✅ `internal/graph`: `FindConflicts` + `TestFindConflicts` (state relations,
      half-open windows, `OWNS` exclusivity, provenance per edge).
@@ -87,9 +111,8 @@ implementation to the target organizational brain.
      baseline seed still yields zero conflicts.
   4. ✅ Statuses flipped in `TRACKER.md`/`EVALUATION.md`/`AGENT_SPEC.md` after
      the tests passed.
-- **Next slice — E5 temporal as-of (PROPOSED)**: add optional `as_of` to state
-  reads (predicate `valid_from <= as_of AND (valid_to IS NULL OR valid_to >
-  as_of)`), time-shifted fixtures, then E5 green.
+- **Next slice — M1 remainder**: staleness surfacing (`observed_at`-based
+  freshness) and a runnable E1 identity fixture; both still open.
 - **E6 acceptance criteria (testable)**: overlapping-but-touching half-open
   intervals do **not** flag; genuinely overlapping incompatible claims do;
   every flagged edge carries `src_ref`/`valid_from`/`valid_to`; baseline
@@ -97,7 +120,15 @@ implementation to the target organizational brain.
   never flagged; invalid `relation` filter → 400; empty result →
   `200 {"conflicts":[]}`; deterministic group/member ordering; suite runs
   against live FalkorDB (skipped under `-short`).
-- **Definition of done**: suites E1/E5/E6 green (E6 green 2026-10-16; E1/E5 open); schema changes recorded in ADR.
+- **E5 acceptance criteria (testable)**: `as_of == valid_from` returns the
+  owner (inclusive); `as_of == valid_to` returns nobody that era (exclusive);
+  a gap returns nobody; an open-ended window holds for every later `as_of`;
+  an instant before all windows returns nobody; an omitted `as_of` equals the
+  current owner; offset and UTC forms store identically; historical reads keep
+  provenance; `/v1/owner`+`/v1/experts` reject malformed `as_of` with 400;
+  suite runs against live FalkorDB (skipped under `-short`)
+  (`EVALUATION.md` §2.2).
+- **Definition of done**: suites E1/E5/E6 green (E5/E6 green 2026-10-16; E1 open); schema changes recorded in ADR.
 - **Risks / deferred**: real multi-source identity resolution deferred to M2;
   duplicate-`key` masking risk until DB uniqueness is revisited (backlog).
 - **Explicitly NOT done**: no real sources yet.
