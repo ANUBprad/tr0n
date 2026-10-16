@@ -35,6 +35,7 @@ func TestAnswerValidate(t *testing.T) {
 		{"empty question", func(a *Answer) { a.Question = "" }, "question is empty"},
 		{"bad answer layer", func(a *Answer) { a.Layer = "OPINION" }, "is not FACT|INFERENCE|RECOMMENDATION"},
 		{"claim without paths", func(a *Answer) { a.Claims[0].Paths = nil }, "no evidence paths"},
+		{"blank path", func(a *Answer) { a.Claims[0].Paths = []string{" "} }, "empty evidence path"},
 		{"claim with unknown layer", func(a *Answer) { a.Claims[0].Layer = "vibes" }, "is not a knowledge layer"},
 		{"inference without rule_id", func(a *Answer) {
 			a.Claims[1].RuleID = ""

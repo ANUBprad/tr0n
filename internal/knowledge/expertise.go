@@ -38,6 +38,7 @@ type ExpertiseEvent struct {
 	Class      string // key in ExpertiseWeights, or OwnerClass
 	OccurredAt time.Time
 	Path       string
+	Keys       []string
 	Evidence   []Provenance
 }
 
@@ -48,6 +49,7 @@ type Basis struct {
 	OccurredAt   string       `json:"occurred_at,omitempty"`
 	Contribution float64      `json:"contribution"`
 	Path         string       `json:"path"`
+	Keys         []string     `json:"keys,omitempty"`
 	Evidence     []Provenance `json:"evidence"`
 }
 
@@ -102,6 +104,7 @@ func RankExpertise(events []ExpertiseEvent, limit int, now time.Time) *Expertise
 			OccurredAt:   occurred,
 			Contribution: contribution,
 			Path:         ev.Path,
+			Keys:         ev.Keys,
 			Evidence:     ev.Evidence,
 		})
 	}

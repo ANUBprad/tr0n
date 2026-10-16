@@ -1,6 +1,9 @@
 package knowledge
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Claim layers (docs/knowledge-model.md). No silent promotion between
 // them — a claim states which layer it is.
@@ -41,10 +44,10 @@ type Answer struct {
 // Validate refuses anything that would render an untagged or
 // unevidenced claim.
 func (a Answer) Validate() error {
-	if a.Question == "" {
+	if strings.TrimSpace(a.Question) == "" {
 		return fmt.Errorf("question is empty")
 	}
-	if a.Answer == "" {
+	if strings.TrimSpace(a.Answer) == "" {
 		return fmt.Errorf("answer text is empty")
 	}
 	switch a.Layer {
@@ -53,7 +56,7 @@ func (a Answer) Validate() error {
 		return fmt.Errorf("answer layer %q is not FACT|INFERENCE|RECOMMENDATION", a.Layer)
 	}
 	for i, c := range a.Claims {
-		if c.Text == "" {
+		if strings.TrimSpace(c.Text) == "" {
 			return fmt.Errorf("claim %d: empty text", i)
 		}
 		switch c.Layer {
@@ -62,7 +65,7 @@ func (a Answer) Validate() error {
 				return fmt.Errorf("claim %d: rule_id is for INFERENCE claims only", i)
 			}
 		case LayerInference:
-			if c.RuleID == "" {
+			if strings.TrimSpace(c.RuleID) == "" {
 				return fmt.Errorf("claim %d: INFERENCE claim needs rule_id", i)
 			}
 		default:
@@ -70,6 +73,11 @@ func (a Answer) Validate() error {
 		}
 		if len(c.Paths) == 0 {
 			return fmt.Errorf("claim %d (%s): no evidence paths", i, c.Layer)
+		}
+		for _, path := range c.Paths {
+			if strings.TrimSpace(path) == "" {
+				return fmt.Errorf("claim %d: empty evidence path", i)
+			}
 		}
 	}
 	return nil
