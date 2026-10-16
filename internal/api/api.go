@@ -11,8 +11,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/ANUBprad/tr0n/internal/agent"
 	"github.com/ANUBprad/tr0n/internal/graph"
 )
 
@@ -29,6 +31,38 @@ const maxBodyBytes = 1 << 20
 // is a per-request client — the handler signatures do not change.
 func Handler(c *graph.Client) http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/catalog", func(w http.ResponseWriter, r *http.Request) {
+		res, err := c.Catalog()
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		write(w, http.StatusOK, res)
+	})
+	mux.HandleFunc("POST /v1/ask", func(w http.ResponseWriter, r *http.Request) {
+		var req agent.AskRequest
+		if !decode(w, r, &req) {
+			return
+		}
+		if strings.TrimSpace(req.Question) == "" || len(req.Question) > 2000 || len(req.Target) > 300 {
+			badRequest(w, "question must contain 1–2000 characters and target at most 300")
+			return
+		}
+		if _, ok := optionalInstant(w, "as_of", req.AsOf); !ok {
+			return
+		}
+		intent := agent.Intent(req.Question)
+		if req.AsOf != "" && intent != "owner" && intent != "experts" {
+			badRequest(w, "as_of is supported for ownership and expertise only")
+			return
+		}
+		res, err := agent.Ask(r.Context(), c, req)
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		write(w, http.StatusOK, res)
+	})
 
 	mux.HandleFunc("POST /v1/owner", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

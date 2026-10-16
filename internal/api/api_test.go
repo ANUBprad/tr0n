@@ -69,6 +69,16 @@ func TestEndpoints(t *testing.T) {
 		return out
 	}
 
+	t.Run("ask", func(t *testing.T) {
+		answer := post(t, "/v1/ask", `{"question":"Why did we choose Redis over Kafka?"}`, http.StatusOK)
+		if !strings.Contains(answer["answer"].(string), "24-hour") || answer["intent"] != "decision" {
+			t.Fatalf("bad question response: %v", answer)
+		}
+		post(t, "/v1/ask", `{"question":""}`, http.StatusBadRequest)
+		post(t, "/v1/ask", `{"question":"Who owns it?","as_of":"yesterday"}`, http.StatusBadRequest)
+		post(t, "/v1/ask", `{"question":"Why Redis?","as_of":"2026-01-01T00:00:00Z"}`, http.StatusBadRequest)
+		post(t, "/v1/ask", `{"question":"Who owns it?","unexpected":1}`, http.StatusBadRequest)
+	})
 	t.Run("owner", func(t *testing.T) {
 		owners := postList(t, "/v1/owner", `{"target":"payments-api"}`, http.StatusOK)
 		if len(owners) != 1 {

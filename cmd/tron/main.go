@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -22,6 +23,57 @@ func main() {
 		addr = "localhost:6379"
 	}
 	switch {
+	case len(os.Args) == 3 && os.Args[1] == "import":
+		file, err := os.Open(os.Args[2])
+		if err != nil {
+			fatal(err)
+		}
+		defer file.Close()
+		info, err := file.Stat()
+		if err != nil {
+			fatal(err)
+		}
+		if info.Size() > 5<<20 {
+			fatal(fmt.Errorf("import file exceeds 5 MiB"))
+		}
+		dec := json.NewDecoder(io.LimitReader(file, 5<<20))
+		dec.DisallowUnknownFields()
+		var records []graph.SourceRecord
+		if err := dec.Decode(&records); err != nil {
+			fatal(err)
+		}
+		if _, err := dec.Token(); err != io.EOF {
+			fatal(fmt.Errorf("unexpected trailing JSON"))
+		}
+		if len(records) == 0 || len(records) > 1000 {
+			fatal(fmt.Errorf("import must contain 1–1000 records"))
+		}
+		for _, record := range records {
+			if err := record.Validate(); err != nil {
+				fatal(err)
+			}
+		}
+		c := connect(addr)
+		defer c.Close()
+		changed := 0
+		for i, record := range records {
+			updated, err := c.ImportRecord(record)
+			if err != nil {
+				fatal(fmt.Errorf("record %d (%s): %w; %d prior records changed, rerun safely after correcting input", i+1, record.Key, err, changed))
+			}
+			if updated {
+				changed++
+			}
+		}
+		fmt.Printf("imported %d record(s): %d changed, %d unchanged\n", len(records), changed, len(records)-changed)
+	case len(os.Args) == 5 && os.Args[1] == "owner-set":
+		c := connect(addr)
+		defer c.Close()
+		changed, err := c.RecordOwner(os.Args[2], os.Args[3], os.Args[4], time.Now().UTC())
+		if err != nil {
+			fatal(err)
+		}
+		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{"changed": changed, "service": os.Args[2], "owner": os.Args[3], "source_ref": os.Args[4]})
 	case len(os.Args) == 3 && os.Args[1] == "owner":
 		c := connect(addr)
 		defer c.Close()
@@ -68,6 +120,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       tron seed          recreate the synthetic graph (destructive)")
 		fmt.Fprintln(os.Stderr, "       tron demo          run the five demo scenarios as pass/fail checks")
 		fmt.Fprintln(os.Stderr, "       tron serve         serve the Q&A UI + JSON API (TRON_HTTP_ADDR)")
+		fmt.Fprintln(os.Stderr, "       tron owner-set <service-key> <owner-key> <source-ref>  record a sourced ownership change")
+		fmt.Fprintln(os.Stderr, "       tron import <file.json>  upsert explicitly mapped source records")
 		os.Exit(2)
 	}
 }
