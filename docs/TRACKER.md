@@ -49,7 +49,7 @@
 | Fact-write contract | `internal/graph/load.go` | **Verified** | key shape, provenance minimum, referential integrity, temporal windows; `internal/graph/load_test.go` |
 | Temporal as-of queries | `internal/graph` | **Verified** | optional `as_of` on `FindOwner`/`FindExperts` (half-open `valid_from <= as_of < valid_to`); loader normalizes windows to canonical UTC; sentinel default = current; `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC` (2026-10-16) → E5 IMPLEMENTED |
 | Key uniqueness enforcement | `internal/graph/load.go` | **Not started** | DB-level constraint **deferred by decision 2026-10-15** (loader in-batch check only; non-unique index; cross-load duplicates remain a known limitation — `planning/decision-log.md`, `OPEN_QUESTIONS.md`); revisit before M2 multi-source ingestion |
-| Entity resolution | `internal/knowledge/resolve.go` | **Verified** | single-source; no cross-source merge |
+| Entity resolution | `internal/graph/graph.go` (`ResolveEntity`) | **Verified** | single-source; no cross-source merge (`TestResolveEntity`, `TestDuplicateKeyAcrossLoadsIsSurfacedNotMerged`) |
 | Expertise | `internal/knowledge/expertise.go` | **Verified** | weights unvalidated (R10) |
 | Decision trace | `internal/knowledge/decision.go` | **Verified** | — |
 | Incidents | `internal/knowledge/incidents.go` | **Verified** | — |

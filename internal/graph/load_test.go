@@ -336,3 +336,44 @@ func TestLoadEdgesRejectsMissingEndpoint(t *testing.T) {
 		}
 	})
 }
+
+// E1 identity fixture (docs/EVALUATION.md §2.1, docs/SCHEMA.md §9): the
+// single-source resolver never merges and never guesses. Key uniqueness
+// is enforced by the loader only *within* a batch — database-level
+// enforcement is deferred (docs/OPEN_QUESTIONS.md, 2026-10-15) — so two
+// separate loads of the same key create two nodes. The resolver must
+// surface that ambiguity as a candidate list rather than silently
+// collapsing it to one key (which would be a false merge).
+func TestDuplicateKeyAcrossLoadsIsSurfacedNotMerged(t *testing.T) {
+	c := newTestClient(t)
+
+	first := nodeRow("person:ada")
+	first["name"] = "Ada (HR registry)"
+	second := nodeRow("person:ada")
+	second["name"] = "Ada (GitHub)"
+	mustLoadNodes(t, c, "Person", []map[string]interface{}{first})
+	mustLoadNodes(t, c, "Person", []map[string]interface{}{second})
+
+	// Known limitation, not a relaxation: cross-load duplicate keys are
+	// not database-enforced. This fixture pins the current behavior so a
+	// future change (MERGE, or a cross-load guard) cannot land silently.
+	if n := nodeCount(t, c); n != 2 {
+		t.Fatalf("nodes = %d, want 2 (documenting the deferred-uniqueness limitation)", n)
+	}
+
+	got, err := c.ResolveEntity("person:ada", "Person")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Key != "" {
+		t.Errorf("resolver collapsed a duplicate key to one answer (false merge): %+v", got)
+	}
+	if got.MatchedOn != "key" || len(got.Candidates) != 2 {
+		t.Errorf("want 2 candidates on the key tier, got %+v", got)
+	}
+	for _, cand := range got.Candidates {
+		if cand.Key != "person:ada" {
+			t.Errorf("candidate key = %q, want person:ada", cand.Key)
+		}
+	}
+}

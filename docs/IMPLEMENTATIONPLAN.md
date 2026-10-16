@@ -86,10 +86,12 @@ implementation to the target organizational brain.
     `key` uniqueness requirement is **not** database-enforced (non-unique
     index; loader in-batch check only), *decided deferral, not an open
     question* (2026-10-15). E1 is **PARTIAL**.
-  - **Evidence** — E5/E6 suites green (2026-10-16: `TestFindOwnerAsOf`,
-    `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`,
-    `TestFindConflicts`, `TestEndpoints/conflicts`, `load_test.go`); E1 still
-    lacks a runnable identity fixture.
+   - **Evidence** — E5/E6 suites green (2026-10-16: `TestFindOwnerAsOf`,
+     `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`,
+     `TestFindConflicts`, `TestEndpoints/conflicts`, `load_test.go`); E1 now
+     has a runnable identity fixture (2026-10-16: `TestResolveEntity` tiers +
+     `TestDuplicateKeyAcrossLoadsIsSurfacedNotMerged`, which pins the
+     duplicate-key behavior as *surfaced, not merged*).
 - **Delivered — E5 (2026-10-16)**:
   1. ✅ `internal/graph`: optional `as_of` on `FindOwner`/`FindExperts` +
      half-open predicate + far-future sentinel default; `TestFindOwnerAsOf`,
@@ -112,7 +114,9 @@ implementation to the target organizational brain.
   4. ✅ Statuses flipped in `TRACKER.md`/`EVALUATION.md`/`AGENT_SPEC.md` after
      the tests passed.
 - **Next slice — M1 remainder**: staleness surfacing (`observed_at`-based
-  freshness) and a runnable E1 identity fixture; both still open.
+  freshness) is still open; the runnable E1 identity fixture is delivered
+  (2026-10-16). Cross-load duplicate-`key` enforcement stays deferred
+  (`OPEN_QUESTIONS.md`, decision-log 2026-10-15).
 - **E6 acceptance criteria (testable)**: overlapping-but-touching half-open
   intervals do **not** flag; genuinely overlapping incompatible claims do;
   every flagged edge carries `src_ref`/`valid_from`/`valid_to`; baseline
