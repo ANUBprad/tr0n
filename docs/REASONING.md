@@ -2,7 +2,7 @@
 
 **Status**: Canonical. Authority for how TRON turns memory into grounded
 answers, explanations, and recommendations.
-**Last updated**: 2026-10-12.
+**Last updated**: 2026-10-15.
 **Current-state authority**: [`AGENT_SPEC.md`](AGENT_SPEC.md) (locked
 operation boundary + agent seam) and [`architecture-minimal.md`](architecture-minimal.md).
 **Related**: [`SCHEMA.md`](SCHEMA.md), [`INGESTION.md`](INGESTION.md),
@@ -12,8 +12,8 @@ operation boundary + agent seam) and [`architecture-minimal.md`](architecture-mi
 > **Current reality**: deterministic graph operations + deterministic answer
 > composers exist (`internal/graph`, `internal/ui`). The agent loop exists as a
 > provider-agnostic seam with **no LLM wired** (`internal/agent/agent.go`).
-> Context assembly, contradiction detection, option comparison, and planning
-> are **PROPOSED**.
+> Context assembly, option comparison, and planning are **PROPOSED**;
+> contradiction detection ships as `FindConflicts` (E6 v1, 2026-10-16).
 
 ---
 
@@ -85,7 +85,7 @@ discipline to PREDICTION/PROPOSED states (`SCHEMA.md` §2).
 
 | Case | Behavior |
 |---|---|
-| **Contradiction** (two facts, same subject/predicate, incompatible objects) | Surface both with sources; do not pick silently. State that sources disagree. |
+| **Contradiction** (two state-relation edges, same relationship, incompatible claims, overlapping half-open validity — `SCHEMA.md` §6; for `OWNS`, different owners of one target) | Surface both with sources; do not pick silently. State that sources disagree. Event edges and node-property conflicts are out of scope for E6 v1. |
 | **Stale fact** | Show with age; prefer recent; do not present stale as current. |
 | **Missing information** | Say what is missing and what would resolve it; ask a clarifying question if cheap. |
 | **Model uncertainty** | Surface an interval/confidence where a model provides one; otherwise do not fabricate confidence. |

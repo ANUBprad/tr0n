@@ -75,6 +75,15 @@ v1 (see `knowledge-model.md`). Temporal = carries
 | `ABOUT` | Document → Service\|Project\|Technology | What a document is about | no | doc metadata/topic |
 | `USES` | Service → Technology | Technology usage | no | service registry |
 
+### Exclusivity (E6 conflict input)
+
+Only `OWNS` declares a single-valued slot in v1 — one owner edge per target
+per era. No other relationship is exclusive: a subject may legitimately reach
+different targets (a person owns several services, works on several projects).
+E6 contradiction detection must not infer exclusivity beyond this table
+(`SCHEMA.md` §6, `planning/decision-log.md` 2026-10-15). Making another
+relationship exclusive requires editing its row here first.
+
 ### Multi-hop paths the schema exists to support
 
 - **Expertise**: `Person →AUTHORED→ PR →MODIFIED→ Repo ←HAS_REPO← Service`
@@ -111,8 +120,8 @@ v1 (see `knowledge-model.md`). Temporal = carries
 
 *Amended 2026-10-13 to distinguish the locked requirement from the shipped
 index.* The requirement is authoritative; the implementation enforces less.
-The gap is recorded as an unresolved product decision below — it is **not** a
-weakening of the requirement.
+The gap is recorded as the product decision below (decided 2026-10-15) — it is
+**not** a weakening of the requirement.
 
 | Index | Requirement (locked) | Current implementation |
 |---|---|---|
@@ -120,8 +129,14 @@ weakening of the requirement.
 | `name` / `title` per label | index for entity resolution by name | **Not created** today |
 | any other index | none until a query plan demands one (measure first) | none |
 
-**Unresolved product decision (PROPOSED).** Whether to enforce `key`
-uniqueness in the database (a unique constraint/index, if FalkorDB supports
-one) or to accept loader/ingestion-enforced uniqueness. Recorded in
-`OPEN_QUESTIONS.md` and tracked against M1 in `IMPLEMENTATIONPLAN.md` /
-`TRACKER.md`. Until decided, the unique-per-label requirement stands.
+**Product decision (2026-10-15): defer database-level enforcement.** v1
+accepts loader-/ingestion-enforced uniqueness. The unique-per-label
+requirement above is unchanged and is **not** relaxed by this deferral.
+Known limitation: the non-unique index plus the bulk loader's *in-batch*
+check (`validateNode`) do **not** prevent duplicate `key` nodes across
+separate loads — duplicates remain possible and are an ingestion
+responsibility, and E6 conflict detection groups edges by key regardless
+of node multiplicity, so a duplicate-key node can merge or mask a conflict
+group. Recorded in `planning/decision-log.md`, promoted from
+`OPEN_QUESTIONS.md`, and tracked in `TRACKER.md` (backlog: revisit a DB
+constraint before multi-source ingestion, M2).

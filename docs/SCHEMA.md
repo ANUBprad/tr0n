@@ -1,7 +1,7 @@
 # TRON — Canonical Organizational Knowledge Model (SCHEMA)
 
 **Status**: Canonical. Authority for the **target** knowledge model.
-**Last updated**: 2026-10-13.
+**Last updated**: 2026-10-15.
 **Current-schema authority**: [`GRAPH_MODEL.md`](GRAPH_MODEL.md) (locked: 11
 entities / 16 relationships) and [`knowledge-model.md`](knowledge-model.md)
 (locked: layers, provenance, temporal rules). This document specifies the
@@ -186,6 +186,14 @@ Rules:
 - **Update = close + open.** Never rewrite a fact. Set `valid_to` on the old
   edge, insert a new edge (`knowledge-model.md`).
 - **As-of queries**: `valid_from <= $t AND (valid_to IS NULL OR valid_to > $t)`.
+- **Intervals are half-open `[valid_from, valid_to)`.** An instant equal to
+  `valid_to` belongs to the next interval, so intervals that only touch at an
+  endpoint (`valid_to == next valid_from`) do **not** overlap — a close+open
+  handoff is never an overlap.
+- **Missing `valid_from` on a state edge is an integrity anomaly**, not an
+  infinitely old claim; the loader rejects it at write
+  (`internal/graph/load.go` `validateEdge`), and query code must surface or
+  omit such rows, never treat them as always valid.
 - Event edges need no window; use the event timestamp.
 
 ## 6. Lifecycle: change, staleness, contradiction, correction, deletion
@@ -194,7 +202,7 @@ Rules:
 |---|---|
 | **Owner changes** | close old `OWNS` (`valid_to`), open new. Both remain true for their era. |
 | **Fact goes stale** | Nothing is deleted. Freshness is computed from `observed_at`; retrieval prefers recent facts but can surface old ones with age. |
-| **Two sources contradict** | Store both facts. A contradiction is *derived*: same subject+predicate with overlapping validity and different objects. Surface it with both `src_ref`s; never silently pick. |
+| **Two sources contradict** | Store both facts. A contradiction is *derived* at query time (§4), never stored: two **state**-relation edges of the same type whose validity windows overlap under the half-open rule (§5) and whose claims are *incompatible* for that relationship. Compatibility is relationship-specific: `OWNS` is exclusive per target — two different owners of the same target over overlapping validity conflict (`GRAPH_MODEL.md` Exclusivity); no other v1 state relationship is exclusive, and a repeated same-counterpart claim is corroboration, not contradiction. Event edges and node-property disagreements are out of scope for E6 v1. Surface it with both `src_ref`s; never silently pick. |
 | **Duplicate identity** | One canonical node; extra source keys become `aliases`. Never a second node (`knowledge-model.md`). Ambiguous match → candidate list, never a guess (`internal/graph` ResolveEntity). |
 | **Source corrects a fact** | New fact with a new `observed_at`; old edge closed. The correction is visible as history. |
 | **Deletion / retraction from source** | Mark affected facts via `valid_to` or a `retracted_at`, propagate per [`INGESTION.md`](INGESTION.md); preserve the audit trail. |
@@ -204,8 +212,9 @@ Rules:
 
 - **Identity**: `key = "<src>:<native-id>"`. **Required** unique and indexed
   per label; the current implementation ships a **non-unique** index only
-  ([`GRAPH_MODEL.md`](GRAPH_MODEL.md) Indexes; unresolved in
-  `OPEN_QUESTIONS.md`).
+  (database-level enforcement deferred 2026-10-15 — a known limitation, not a
+  relaxation; [`GRAPH_MODEL.md`](GRAPH_MODEL.md) Indexes, `OPEN_QUESTIONS.md`,
+  `planning/decision-log.md`).
 - **Provenance minimum on every fact**: `src_type`, `src_ref`, `observed_at`,
   `extraction`, `valid_from`/`valid_to` (state edges). `confidence` only when
   extraction is non-deterministic (`knowledge-model.md`).

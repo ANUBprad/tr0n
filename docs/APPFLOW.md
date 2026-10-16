@@ -2,7 +2,7 @@
 
 **Status**: Canonical. Authority for CLI, API, and UI responsibilities,
 commands, workflows, and interaction design.
-**Last updated**: 2026-10-12.
+**Last updated**: 2026-10-15.
 **Related**: [`PRD.md`](PRD.md), [`TECHSPEC.md`](TECHSPEC.md),
 [`REASONING.md`](REASONING.md), [`ACTIONS.md`](ACTIONS.md),
 [`SECURITY.md`](SECURITY.md), `AGENT_SPEC.md`.
@@ -85,6 +85,7 @@ read-only; strict JSON (unknown fields rejected), 1 MiB body cap.
 | `POST /v1/incidents` | `{service_key, since?, keywords?}` | `IncidentRef[]` | ✅ |
 | `POST /v1/evidence` | `{keys[]}` | `NodeEvidence[]` | ✅ |
 | `POST /v1/resolve` | `{name, label?}` | `Resolution` | ✅ |
+| `POST /v1/conflicts` | `{relation?, key?}` | `{layer, rule_id, conflicts[]}` | ✅ (E6 v1) |
 | `GET /v1/health` | — | `{status}` \| 503 | ✅ |
 | `POST /v1/ask` | `{question, as_of?}` | `Answer` envelope | ⏳ |
 | `POST /v1/plan` | `{goal, options[]?}` | options + basis | ⏳ |
@@ -93,6 +94,12 @@ read-only; strict JSON (unknown fields rejected), 1 MiB body cap.
 **Contract**: successful data returns the typed JSON; failures return
 `{"error": "..."}` with a 4xx/5xx code; internal errors never leak details
 (`internal/api/api.go` `serverError`).
+
+**`POST /v1/conflicts` (E6 v1, IMPLEMENTED 2026-10-16)**: same conventions
+as the other read ops — unknown fields rejected, read-only. Empty result is
+success (`200` with `{"conflicts": []}`), not 404; an unknown `relation`
+value is a 400. Contract detail in `AGENT_SPEC.md`, decision in
+`planning/decision-log.md`.
 
 ## 4. Web UI
 

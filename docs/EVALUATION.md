@@ -1,7 +1,7 @@
 # TRON — Evaluation & Quality Assurance
 
 **Status**: Canonical. Authority for how TRON measures quality and trust.
-**Last updated**: 2026-10-13.
+**Last updated**: 2026-10-15.
 **Current-state authority**: testing posture in
 [`architecture-minimal.md`](architecture-minimal.md) and the existing Go test
 suites (10 files under `cmd/` and `internal/`).
@@ -40,13 +40,41 @@ cost/latency — the parts that don't exist yet.
 | E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PROPOSED |
 | E4 | **Citation support** | answers + their claims | every claim cites a valid path (`Answer.Validate`) | IMPLEMENTED (structural) |
 | E5 | **Temporal accuracy** | time-shifted fixtures (owner 2026 vs 2027) | correct as-of results | PROPOSED (temporal as-of querying and time-shifted fixtures absent) |
-| E6 | **Contradiction detection** | injected conflicting facts | both surfaced, none hidden | PROPOSED |
+| E6 | **Contradiction detection** | injected conflicting state-relation claims (overlapping half-open windows) + non-conflicting decoys | both surfaced, none hidden; nothing extra flagged | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindConflicts`, `internal/api` `TestEndpoints/conflicts`; scope decided 2026-10-15, see §2.1 |
 | E7 | **Permission enforcement** | facts with differing scopes | no derived leakage | PROPOSED |
 | E8 | **Recommendation quality** | scenarios rated by humans | useful/correct vs baseline | PROPOSED |
 | E9 | **Action authorization** | allow / require-approval / deny fixtures | gate honors policy | PROPOSED |
 | E10 | **Duplicate & failed execution** | replayed idempotency keys; injected target failures | executes once; failures classified | PROPOSED |
 | E11 | **Proactive alert quality** | events with/without true alerts | precision/recall of alerts | PROPOSED (no proactive feature yet) |
 | E12 | **Latency & cost** | workload replay | p50/p95 per op; tokens/$ per answer | PARTIAL (per-op ms captured in UI) |
+
+### 2.1 E6 scope and v1 checklist (decided 2026-10-15; implemented 2026-10-16)
+
+E6 v1 covers **state relations only** (`WORKS_IN, OWNS, WORKED_ON, HAS_REPO,
+DEPENDS_ON`); event edges and node-property disagreements are out of scope.
+Compatibility is relationship-specific (`OWNS` exclusive per target; others
+only if `GRAPH_MODEL.md` declares exclusivity; same counterpart = corroboration),
+and intervals are half-open (`SCHEMA.md` §5–§6, `planning/decision-log.md`).
+Implemented as `graph.FindConflicts` (`contradiction/v1`) and exposed at
+`POST /v1/conflicts`.
+
+Runnable suite demonstrates — `TestFindConflicts` (`internal/graph`),
+`TestEndpoints/conflicts` (`internal/api`), both real-FalkorDB and skipped
+under `-short`:
+
+- overlapping-but-touching half-open intervals do **not** flag; genuinely
+  overlapping incompatible claims **do**;
+- every flagged edge carries full provenance (`src_ref`, `valid_from`,
+  `valid_to`);
+- the baseline (unmodified) seed graph yields **zero** conflicts — no false
+  positives on shipped data;
+- event-edge and node-property decoys are never flagged;
+- a state edge whose window cannot be parsed is omitted from detection (the
+  loader rejects a missing `valid_from` at write); it is never treated as
+  always-valid;
+- exposure via `POST /v1/conflicts`: invalid `relation` → 400, empty result →
+  `200 {"conflicts":[]}`, deterministic ordering of groups and members;
+- runs against live FalkorDB like the other op suites (skipped under `-short`).
 
 ## 3. Baselines and comparison
 

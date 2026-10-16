@@ -3,9 +3,10 @@
 **Status**: Canonical. Authority for how raw company information becomes
 trustworthy structured knowledge, and how it is compressed without losing
 evidence.
-**Last updated**: 2026-10-12.
-**Current-state authority**: [`DATA_SPEC.md`](DATA_SPEC.md) (synthetic seed
-generator, IMPLEMENTED) and [`architecture-minimal.md`](architecture-minimal.md).
+**Last updated**: 2026-10-15.
+**Current-state authority**: [`architecture-minimal.md`](architecture-minimal.md)
+— seed status in [`TRACKER.md`](TRACKER.md). `DATA_SPEC.md` is superseded
+([`README.md`](README.md) index) and is not an authority.
 **Related**: [`SCHEMA.md`](SCHEMA.md), [`TECHSPEC.md`](TECHSPEC.md),
 [`REASONING.md`](REASONING.md), [`SECURITY.md`](SECURITY.md),
 [`EVALUATION.md`](EVALUATION.md).

@@ -2,7 +2,7 @@
 
 **Status**: Canonical. Authority for engineering rules, architecture decisions
 (ADR), and the risk register.
-**Last updated**: 2026-10-12.
+**Last updated**: 2026-10-15.
 **Related**: `AGENTS.md` (the binding working rules), `opencode.md`,
 `planning/decision-log.md` (chronological decision history),
 [`TECHSPEC.md`](TECHSPEC.md), [`SECURITY.md`](SECURITY.md),
@@ -66,7 +66,7 @@ repeated. New target-architecture decisions are recorded here with status.
 | D4 | Deterministic expertise (`expertise/v1`); LLM never ranks | decision-log |
 | D5 | Temporal = valid-from/to on mutating edges; append-only | `knowledge-model.md` |
 | D6 | Schema 11 entities / 16 relationships (v1) | `GRAPH_MODEL.md` |
-| D7 | Graph boundary = 5 ops + ResolveEntity; `prepare_handoff` deferred | `AGENT_SPEC.md` |
+| D7 | Graph boundary = 5 ops + ResolveEntity (`FindConflicts` added per A11, implemented 2026-10-16); `prepare_handoff` deferred | `AGENT_SPEC.md` |
 | D8 | Test against real FalkorDB; no mocks | `architecture-minimal.md` |
 | D9 | Seed = deterministic Go generator; wipe-and-recreate | decision-log |
 | D10 | Agent = custom minimal loop behind one `Decide` seam | decision-log |
@@ -85,6 +85,7 @@ repeated. New target-architecture decisions are recorded here with status.
 | **A8** | **Outcome verification closes the loop** (verified outcome → fact) | Actions are not "done" until verified | Fire-and-forget | Requires target read-back / event | PROPOSED |
 | **A9** | **Inferences computed at query time, not stored** | Prevents inference→fact drift | Materialized inference edges | Recompute cost; trivial at this scale | LOCKED |
 | **A10** | **No new infrastructure without a measured requirement + ADR** | Avoids speculative complexity | Adopt frameworks early | QoS: frameworks, queues, vector DBs, multi-agent all deferred | LOCKED (rule) |
+| **A11** | **E6 contradiction semantics + read-only `POST /v1/conflicts`** — state-relation claims only, half-open overlap, `OWNS` exclusive per target; boundary 5 + 1 → 6 + 1 | Canonical rule needed a compatibility/interval spec; the API is the product surface; read-only keeps the single-writer invariant | Literal subject-side grouping (false positives); UI/CLI-only; agent-tool-only; DB-stored flags (violates A9) | Contract proposed in `AGENT_SPEC.md`; decisions in `planning/decision-log.md`; `TECHSPEC.md`/`APPFLOW.md` updated; operation **IMPLEMENTED** (2026-10-16) | DECIDED (semantics, 2026-10-15); operation IMPLEMENTED (2026-10-16) |
 
 ## 4. Decisions that require an ADR before implementation
 

@@ -73,6 +73,7 @@ Historical/hackathon-era docs are marked superseded; see the index.
 - [x] All five graph operations implemented with real-DB tests
 - [x] Seed data generator: deterministic `internal/seed` + `tron seed` (five-query connectivity contract tested)
 - [x] JSON API layer: read-only `internal/api` over all six ops (`tron serve`, real-DB HTTP contract test)
+- [x] Contradiction detection (E6 v1): read-only `POST /v1/conflicts` over `graph.FindConflicts` (state relations, `OWNS` exclusive; real-DB tests)
 - [x] Agent loop: deliberate-retrieval core with provider-agnostic `Decide` seam (`internal/agent`, scripted + real-graph tests)
 - [x] Q&A UI: server-rendered five built-in questions with evidence panels (`internal/ui`, claim-envelope validation)
 - [x] Demo verification: `tron demo` runs all five scenarios + evidence drill-down as pass/fail checks

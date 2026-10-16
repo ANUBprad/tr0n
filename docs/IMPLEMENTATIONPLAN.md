@@ -2,7 +2,7 @@
 
 **Status**: Canonical. Authority for the dependency-aware plan from current
 implementation to the target organizational brain.
-**Last updated**: 2026-10-13.
+**Last updated**: 2026-10-15.
 **Supersedes**: `EXECUTION_PLAN.md`, `planning/milestones.md`,
 `planning/backlog.md` (kept for history).
 **Related**: [`PRD.md`](PRD.md), [`TECHSPEC.md`](TECHSPEC.md),
@@ -47,24 +47,59 @@ implementation to the target organizational brain.
   shape, provenance minimum, referential integrity, temporal-window
   validation) is enforced at the bulk loader (`internal/graph/load.go`,
   `load_test.go`).
+- **Progress (2026-10-15)**: specification gaps closed in docs (no code):
+  E6 contradiction semantics and intervals decided, `POST /v1/conflicts`
+  decided as the first E6 exposure (boundary 5+1 → 6+1), DB-level `key`
+  uniqueness deferred to the backlog. Authority: `planning/decision-log.md`.
+- **Progress (2026-10-16)**: E6 slice landed — `graph.FindConflicts`
+  (`rule_id contradiction/v1`, state relations only, `OWNS` exclusive per
+  target) + read-only `POST /v1/conflicts`, with real-FalkorDB tests
+  (`internal/graph` `TestFindConflicts`, `internal/api`
+  `TestEndpoints/conflicts`) and loader window-validation hardening
+  (`internal/graph/load.go` `validateEdge`). Baseline seed yields zero false
+  positives.
 - **Test strategy**: E1 (resolution), E5 (temporal), E6 (contradiction),
   provenance invariants extended.
 - **Acceptance (target)**: as-of queries correct on time-shifted fixtures;
   injected contradictions surfaced (not hidden); duplicate identity yields
   candidates, never a wrong merge.
-- **Outstanding — not met (2026-10-13)**:
+- **Outstanding — not met (2026-10-15)**:
   - **Temporal as-of correctness** — state ops (e.g. `FindOwner`) return
     current state only; no `as_of` parameter and no historical query exist.
     `valid_from`/`valid_to` are validated at write but never queried as-of.
     No time-shifted fixtures. E5 is **PROPOSED** (not PARTIAL/evidenced).
-  - **Contradiction surfacing** — no derivation or surfacing of conflicting
-    facts on the same subject/predicate. E6 is **PROPOSED**.
+  - **Contradiction surfacing** — **MET (2026-10-16)**: `graph.FindConflicts`
+    derives incompatible state-relation claims at query time and
+    `POST /v1/conflicts` exposes them; E6 is **IMPLEMENTED** (evidence below).
   - **Identity / duplicate behavior** — single-source resolution only; the
     `key` uniqueness requirement is **not** database-enforced (non-unique
-    index; loader in-batch check only). E1 is **PARTIAL**.
-  - **Evidence** — no green E1/E5/E6 suites; E1/E5/E6 lack runnable fixtures.
-- **Definition of done**: suites E1/E5/E6 green; schema changes recorded in ADR.
-- **Risks / deferred**: real multi-source identity resolution deferred to M2.
+    index; loader in-batch check only), *decided deferral, not an open
+    question* (2026-10-15). E1 is **PARTIAL**.
+  - **Evidence** — E6 suite green (2026-10-16: `TestFindConflicts`,
+    `TestEndpoints/conflicts`, `load_test.go` window cases); E1/E5 still lack
+    runnable as-of/identity fixtures.
+- **Delivered — E6 (2026-10-16)**:
+  1. ✅ `internal/graph`: `FindConflicts` + `TestFindConflicts` (state relations,
+     half-open windows, `OWNS` exclusivity, provenance per edge).
+  2. ✅ `internal/api`: `POST /v1/conflicts` + `TestEndpoints/conflicts` (400 on
+     invalid `relation`, empty list = `200 {conflicts:[]}`).
+  3. ✅ `internal/seed`: fixtures built in-test (injected conflicting claim);
+     baseline seed still yields zero conflicts.
+  4. ✅ Statuses flipped in `TRACKER.md`/`EVALUATION.md`/`AGENT_SPEC.md` after
+     the tests passed.
+- **Next slice — E5 temporal as-of (PROPOSED)**: add optional `as_of` to state
+  reads (predicate `valid_from <= as_of AND (valid_to IS NULL OR valid_to >
+  as_of)`), time-shifted fixtures, then E5 green.
+- **E6 acceptance criteria (testable)**: overlapping-but-touching half-open
+  intervals do **not** flag; genuinely overlapping incompatible claims do;
+  every flagged edge carries `src_ref`/`valid_from`/`valid_to`; baseline
+  seed produces zero false positives; event edges and node-property decoys
+  never flagged; invalid `relation` filter → 400; empty result →
+  `200 {"conflicts":[]}`; deterministic group/member ordering; suite runs
+  against live FalkorDB (skipped under `-short`).
+- **Definition of done**: suites E1/E5/E6 green (E6 green 2026-10-16; E1/E5 open); schema changes recorded in ADR.
+- **Risks / deferred**: real multi-source identity resolution deferred to M2;
+  duplicate-`key` masking risk until DB uniqueness is revisited (backlog).
 - **Explicitly NOT done**: no real sources yet.
 
 ## Milestone 2 — Data ingestion & synchronization

@@ -2,7 +2,9 @@
 
 **Status**: LOCKED for the graph boundary (2026-10-08); agent layer is
 future work. One home for all tool contracts — referenced by
-`architecture-minimal.md`.
+`architecture-minimal.md`. Amended 2026-10-15: `FindConflicts` added as a
+**PROPOSED** operation (decided expansion of the boundary, see below and
+`planning/decision-log.md`); **implemented 2026-10-16** (E6 v1).
 
 ## Principle
 
@@ -115,6 +117,38 @@ intended contract, not shipped behavior.
   exact → prefix. No fuzzy/embedding matching in v1.
 - Used *by* the five operations; exposed to the agent only as a candidate
   chooser.
+
+### FindConflicts (IMPLEMENTED — first E6 slice, 2026-10-16)
+
+Boundary note: this is a **decided** expansion of the locked 5 + 1 boundary
+(reason in `planning/decision-log.md`; `RULES.md` §3.2 A11), now
+**implemented**: `graph.FindConflicts` (`internal/graph/graph.go`), the
+read-only `POST /v1/conflicts` handler (`internal/api/api.go`), and
+real-FalkorDB tests (`internal/graph/graph_test.go` `TestFindConflicts`,
+`internal/api/api_test.go` `TestEndpoints/conflicts`). v1 scans state
+relations only; `OWNS` is the sole exclusive relation.
+
+- **Input (target contract)**: optional `relation` (one of the state
+  relations); optional `key` (slot or subject key)
+- **Output (target contract)**: `{ "layer": "INFERENCE",
+  "rule_id": "contradiction/v1", "conflicts": [ { "relation", "slot",
+  "edges": [ … ] } ] }`; each conflicting edge carries its full provenance
+  (`src_type`, `src_ref`, `observed_at`, `extraction`, `valid_from`,
+  `valid_to`); `conflicts: []` when nothing conflicts
+- **Traversal**: state-relation edges only (`WORKS_IN, OWNS, WORKED_ON,
+  HAS_REPO, DEPENDS_ON`), grouped per relationship and compared on half-open
+  windows (`SCHEMA.md` §5–§6). `OWNS` conflicts are different owners of the
+  same target with overlapping validity; any other state relationship
+  conflicts only if `GRAPH_MODEL.md` declares it exclusive (v1: none); a
+  repeated same-counterpart claim is corroboration
+- **Deterministic logic**: derived at query time, never stored (A9); stable
+  order — groups by `(relation, slot key)`, members by `(from key,
+  valid_from, src_ref)`
+- **Provenance returned**: every conflicting edge; both/all `src_ref`s
+  surface, never a silent pick
+- **Answers**: "Where do sources disagree?"
+- **Exposed as**: `POST /v1/conflicts` (`APPFLOW.md`), read-only, same
+  handler conventions as the other read operations
 
 ### Deliberately deferred
 

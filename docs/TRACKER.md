@@ -1,7 +1,7 @@
 # TRON — Implementation Tracker
 
 **Status**: Canonical. Live status of milestones, components, and backlog.
-**Last updated**: 2026-10-13.
+**Last updated**: 2026-10-15.
 **Related**: [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md),
 [`EVALUATION.md`](EVALUATION.md), [`RULES.md`](RULES.md).
 
@@ -24,9 +24,9 @@
 | ID | Milestone | Status | Evidence |
 |---|---|---|---|
 | M0 | Architecture & repository baseline | **Verified** | `tron demo` 6/6; 10 test files; decision-log |
-| M1 | Trustworthy organizational memory | **In progress** | Slice 1: schema/provenance + fact-write contract (`internal/graph/load.go`); **outstanding**: temporal as-of querying, contradiction surfacing, DB-enforced key uniqueness; E1 PARTIAL, E5/E6 PROPOSED |
+| M1 | Trustworthy organizational memory | **In progress** | Slice 1: schema/provenance + fact-write contract (`internal/graph/load.go`); **slice 2 (2026-10-16)**: E6 contradiction detection implemented — `graph.FindConflicts` + `POST /v1/conflicts`, real-FalkorDB tests (`TestFindConflicts`, `TestEndpoints/conflicts`); **outstanding**: temporal as-of querying (E5 PROPOSED), staleness surfacing, identity resolution; E1 PARTIAL, E6 IMPLEMENTED |
 | M2 | Data ingestion & synchronization | **Not started** | only `internal/seed` writes facts |
-| M3 | Evidence-grounded reasoning | **In progress** | agent loop + 6 ops + `Answer.Validate`; no LLM provider wired |
+| M3 | Evidence-grounded reasoning | **In progress** | agent loop + 7 ops + `Answer.Validate`; no LLM provider wired |
 | M4 | Decision support | **Not started** | — |
 | M5 | Controlled action execution | **Not started** | read-only today |
 | M6 | Proactive organizational intelligence | **Not started** | — |
@@ -38,7 +38,7 @@
 | Component | File | Status | Gaps |
 |---|---|---|---|
 | CLI core | `cmd/tron/main.go` | **Implemented** | owner/seed/demo/serve only; source/action groups planned |
-| Health / API server | `internal/api/api.go` | **Verified** | 6 read ops; no auth |
+| Health / API server | `internal/api/api.go` | **Verified** | 7 read ops (incl. `POST /v1/conflicts`); no auth |
 | Web UI | `internal/ui/ui.go`, `page.html` | **Implemented** | 5 fixed questions; no open Q&A |
 | Demo harness | `cmd/tron/demo.go` | **Verified** | 6 scenarios pass/fail |
 
@@ -48,12 +48,12 @@
 | Graph layer | `internal/graph/graph.go` | **Verified** | one global mutex (`ponytail:` ceiling) |
 | Fact-write contract | `internal/graph/load.go` | **Verified** | key shape, provenance minimum, referential integrity, temporal windows; `internal/graph/load_test.go` |
 | Temporal as-of queries | `internal/graph` | **Not started** | windows validated at write; no `as_of` query (`FindOwner` current-only) → E5 PROPOSED |
-| Key uniqueness enforcement | `internal/graph/load.go` | **In progress** | non-unique `key` index; loader in-batch check only; unresolved in `OPEN_QUESTIONS.md` |
+| Key uniqueness enforcement | `internal/graph/load.go` | **Not started** | DB-level constraint **deferred by decision 2026-10-15** (loader in-batch check only; non-unique index; cross-load duplicates remain a known limitation — `planning/decision-log.md`, `OPEN_QUESTIONS.md`); revisit before M2 multi-source ingestion |
 | Entity resolution | `internal/knowledge/resolve.go` | **Verified** | single-source; no cross-source merge |
 | Expertise | `internal/knowledge/expertise.go` | **Verified** | weights unvalidated (R10) |
 | Decision trace | `internal/knowledge/decision.go` | **Verified** | — |
 | Incidents | `internal/knowledge/incidents.go` | **Verified** | — |
-| Contradiction detection | — | **Not started** | M1 |
+| Contradiction detection | `internal/graph/graph.go` | **Verified** | `FindConflicts` (`contradiction/v1`, state relations only, `OWNS` exclusive) + `POST /v1/conflicts`; `TestFindConflicts`, `TestEndpoints/conflicts` (2026-10-16) |
 | Staleness surfacing | — | **Not started** | M1 |
 
 ### Reasoning
@@ -95,7 +95,7 @@
 | Component | Status | Evidence/Gaps |
 |---|---|---|
 | Go test suites (10 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants |
-| Eval suites E1–E12 | **In progress** | E1/E2 PARTIAL, E4 IMPLEMENTED (structural); E5 PROPOSED (as-of absent); E3/E6+ PROPOSED; baselines none |
+| Eval suites E1–E12 | **In progress** | E1/E2 PARTIAL, E4 IMPLEMENTED (structural); E5 PROPOSED (as-of absent); E6 **IMPLEMENTED** (2026-10-16: `TestFindConflicts`, `TestEndpoints/conflicts`); E3/E7+ PROPOSED; baselines none |
 | Comparison baselines | **Not started** | keyword search, RAG, tool-LLM |
 | Canonical docs (this set) | **Verified** | `docs/README.md` index |
 
@@ -111,6 +111,7 @@
 | Message queue / scheduler | one binary (A1) | throughput measured |
 | Cross-tenant isolation | single tenant | before 2nd tenant |
 | `tron doctor`, `tron eval` CLI | convenience | with M7 |
+| DB-level `key` uniqueness constraint | deferred by decision (loader-enforced sufficient for v1; limitation recorded) | before multi-source ingestion (M2) |
 
 ## Update rules
 

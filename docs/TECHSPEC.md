@@ -1,7 +1,7 @@
 # TRON — Technical Specification (Whole-System Architecture)
 
 **Status**: Canonical. Authority for the **target** system architecture.
-**Last updated**: 2026-10-12.
+**Last updated**: 2026-10-15.
 **Current-implementation authority**: [`architecture-minimal.md`](architecture-minimal.md)
 (locked). This document describes where the system is going and marks every
 component **IMPLEMENTED** / **PARTIAL** / **PROPOSED**. Where they differ,
@@ -102,7 +102,7 @@ Legend: every node's implementation status is enumerated in §3. The
 | Component | Package (current name / proposed) | Responsibility | Status |
 |---|---|---|---|
 | CLI | `cmd/tron` | owner/seed/demo/serve today | **IMPLEMENTED** (partial surface) |
-| HTTP API | `internal/api` | Read-only JSON over six ops + health | **IMPLEMENTED** |
+| HTTP API | `internal/api` | Read-only JSON over seven ops + health (six shipped ops + E6 `POST /v1/conflicts`) | **IMPLEMENTED** |
 | Web UI | `internal/ui` | Five built-in questions + evidence panels | **IMPLEMENTED** (fixed questions) |
 | Graph client & ops | `internal/graph` | Cypher, traversal, provenance; all Cypher lives here | **IMPLEMENTED** |
 | Knowledge types | `internal/knowledge` | Layers, provenance, claim validation | **IMPLEMENTED** |
@@ -129,9 +129,12 @@ Legend: every node's implementation status is enumerated in §3. The
 - **Client↔API**: HTTPS/JSON, one API, versioned under `/v1`
   (`internal/api/api.go`). Clients stay thin; no business logic in clients
   (`architecture-minimal.md`).
-- **API↔graph**: the six deterministic operations only
+- **API↔graph**: the deterministic operations only
   (`internal/graph/graph.go`, contracts in `AGENT_SPEC.md`). No ad-hoc Cypher
-  outside `internal/graph`.
+  outside `internal/graph`. `FindConflicts` → `POST /v1/conflicts` follows the
+  same route (contract in `AGENT_SPEC.md`, boundary record in
+  `planning/decision-log.md`, `RULES.md` §3.2 A11) — **implemented 2026-10-16**,
+  E6 v1; reads state relations only.
 - **Business-logic↔reasoning**: deterministic calculators and policy checks
   are called by the reasoning engine; the LLM never computes them.
 - **Reasoning↔actions**: a recommendation becomes an action only through the
