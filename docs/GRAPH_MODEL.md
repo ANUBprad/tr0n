@@ -14,10 +14,10 @@ until a real query demands it.
 ## Entities (initial: 11)
 
 All nodes: `key` = `"<src>:<native-id>"` (identity; **requirement**: unique and
-indexed per label — current implementation is a non-unique index only, see
-Indexes below), plus node provenance `src_type`, `src_ref`, `observed_at`,
-`extraction`. `name`/`title` **required** indexed per label for entity
-resolution (not yet created — see Indexes).
+indexed per label — the index is non-unique and uniqueness is enforced by the
+bulk loader, see Indexes below), plus node provenance `src_type`, `src_ref`,
+`observed_at`, `extraction`. `name`/`title` **required** indexed per label for
+entity resolution (not yet created — see Indexes).
 
 | Entity | Required properties | Optional properties | Native timestamps |
 |---|---|---|---|
@@ -125,18 +125,19 @@ The gap is recorded as the product decision below (decided 2026-10-15) — it is
 
 | Index | Requirement (locked) | Current implementation |
 |---|---|---|
-| `key` per label | **Unique** — one node per `key` (identity) | **Non-unique**: `CREATE INDEX FOR (n:<Label>) ON (n.key)` (`internal/graph/load.go` `Reset`). Duplicate keys are rejected only by the bulk loader's *in-batch* check (`validateNode`) and by single-source seed data — **not** by the database |
+| `key` per label | **Unique** — one node per `key` (identity) | **Non-unique index**: `CREATE INDEX FOR (n:<Label>) ON (n.key)` (`internal/graph/load.go` `Reset`). Uniqueness is enforced by the bulk loader — **in-batch** (`validateNode`) and, since 2026-10-16, **across loads and labels** (`LoadNodes` rejects any batch key already present before writing) — **not** by the database |
 | `name` / `title` per label | index for entity resolution by name | **Not created** today |
 | any other index | none until a query plan demands one (measure first) | none |
 
 **Product decision (2026-10-15): defer database-level enforcement.** v1
-accepts loader-/ingestion-enforced uniqueness. The unique-per-label
-requirement above is unchanged and is **not** relaxed by this deferral.
-Known limitation: the non-unique index plus the bulk loader's *in-batch*
-check (`validateNode`) do **not** prevent duplicate `key` nodes across
-separate loads — duplicates remain possible and are an ingestion
-responsibility, and E6 conflict detection groups edges by key regardless
-of node multiplicity, so a duplicate-key node can merge or mask a conflict
-group. Recorded in `planning/decision-log.md`, promoted from
+accepts loader-enforced uniqueness. The unique-per-label requirement above
+is unchanged and is **not** relaxed by this deferral. **Follow-up
+(2026-10-16)**: the loader now enforces uniqueness *across loads and
+labels*, not only within a batch — `LoadNodes` rejects any batch whose key
+is already present in the graph, before writing anything (non-destructive:
+it rejects, never merges). This closes the path where a duplicate-`key`
+node could silently split an edge/identity lookup or mask an E6 group;
+database-level enforcement (the index remains non-unique) is still
+deferred. Recorded in `planning/decision-log.md`, promoted from
 `OPEN_QUESTIONS.md`, and tracked in `TRACKER.md` (backlog: revisit a DB
 constraint before multi-source ingestion, M2).

@@ -35,7 +35,7 @@ cost/latency — the parts that don't exist yet.
 
 | # | Suite | Fixture (labeled) | What it proves | Status |
 |---|---|---|---|---|
-| E1 | **Entity resolution** | pairs of records known to be same/different | merge correctness, no false merges | PARTIAL (tiers exist) |
+| E1 | **Entity resolution** | pairs of records known to be same/different | merge correctness, no false merges | PARTIAL (2026-10-16: deterministic tiers `TestResolveEntity`; loader rejects cross-load/label duplicate keys `TestDuplicateKeyAcrossLoadsIsRejected`; multi-source merge deferred to M2) |
 | E2 | **Multi-hop graph queries** | fixtures answerable only via ≥3 hops | the product thesis, as a test | PARTIAL (seed contract test) |
 | E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PROPOSED |
 | E4 | **Citation support** | answers + their claims | every claim cites a valid path (`Answer.Validate`) | IMPLEMENTED (structural) |
@@ -89,7 +89,8 @@ two state reads that expose ownership — `FindOwner` and the `OWNS` branch of
 validity-time.
 
 Runnable suite demonstrates — `TestFindOwnerAsOf` / `TestFindExpertsAsOf`
-(`internal/graph`), `TestLoadEdgesNormalizesOffsetToUTC` (`internal/graph`),
+(`internal/graph`), `TestLoadEdgesNormalizesOffsetToUTC` +
+`TestLoadEdgesComparesInstantsNotStrings` (`internal/graph`),
 `TestEndpoints/owner` + `TestEndpoints/experts` (`internal/api`), all
 real-FalkorDB and skipped under `-short`:
 
@@ -101,10 +102,36 @@ real-FalkorDB and skipped under `-short`:
 - omitting `as_of` returns exactly the current owner (unchanged behavior);
 - a non-UTC offset and its UTC equivalent store as the **same** value, so the
   lexicographic comparison is chronologically correct;
+- an **empty window is rejected at write**: `valid_to` must be strictly after
+  `valid_from`, compared as instants (equal endpoints, incl. equal moments
+  written with different offsets, error instead of storing a never-matching
+  `[t, t)`);
 - historical reads still ship full provenance; `as_of` ranks ownership in
   `FindExperts` while `now` still drives decay;
 - `POST /v1/owner` and `/v1/experts` accept optional `as_of`; malformed →
   400.
+
+### 2.3 E1 identity checklist (single-source, implemented 2026-10-16)
+
+No multi-source merge exists yet, so E1 cannot be "complete" (merge
+correctness needs a second source). What is runnable and locked now
+(`internal/graph`, real FalkorDB, skipped under `-short`):
+
+- deterministic tiers, first hit wins, no fuzzy match:
+  `key` → `name`/`title` → case-insensitive exact → prefix
+  (`TestResolveEntity`);
+- an ambiguous tier returns the **candidate list**, never a single guessed
+  key, and an empty query returns nothing (`TestResolveEntity`);
+- the loader enforces `key` uniqueness **across loads and labels** (not just
+  in-batch): a second load of an existing key is rejected before any write,
+  so no two nodes can share a key and the resolver stays unambiguous
+  (`TestDuplicateKeyAcrossLoadsIsRejected`). This is application-level
+  enforcement of the requirement; the DB-level constraint stays deferred
+  (2026-10-15) — no merge, no rewrite, no provenance loss.
+
+Staleness is **not** a suite: freshness is `observed_at`-based and already
+returned on every `Provenance`; no stale threshold or label is defined
+(decision 2026-10-16, `SCHEMA.md` §5).
 
 ## 3. Baselines and comparison
 

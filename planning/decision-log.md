@@ -93,6 +93,25 @@ unchanged; this records the design choices the code needed. Evidence:
 | **Omitted `as_of` uses a far-future sentinel (`9999-12-31T23:59:59Z`)** | One parameterized query serves both current and historical reads: at a far-future instant the half-open predicate is exactly `valid_to IS NULL`, so current-only behavior is preserved with no null/bool branch | `WHERE $as_of IS NULL OR …`; two separate queries | The sentinel is a magic value (documented in `internal/graph/graph.go` `openEndedAsOf`); any real `as_of` before year 9999 is unaffected | DECIDED (default) |
 | **`as_of` is exposed read-only on `/v1/owner` and `/v1/experts` only; variadic so existing callers are unchanged** | These are the two read ops that surface ownership validity. Event reads (e.g. incidents) keep event-time; mixing them would conflate validity-time with event-time | Add `as_of` to incidents/decision; a new dedicated as-of op | Only ownership is as-of-queryable in v1 (documented ceiling); malformed `as_of` → 400 | DECIDED (scope) |
 
+## E5 correctness fix + E1 loader-enforcement follow-up (2026-10-16)
+
+Follow-up to the 2026-10-15 readiness decisions and the E5 implementation.
+Evidence: `internal/graph/load_test.go` (`TestLoadEdgesRejectsInvalidBatch` equal-instant cases,
+`TestLoadEdgesComparesInstantsNotStrings`, `TestDuplicateKeyAcrossLoadsIsRejected`).
+
+| Decision | Why | Alternatives | Tradeoffs / limitations | Status |
+|---|---|---|---|---|
+| **Empty validity windows are rejected: `valid_to` must be strictly after `valid_from`** | The half-open predicate `valid_from <= as_of < valid_to` matches nothing when the endpoints are equal, so a zero-length window `[t, t)` is an unusable fact. `validateEdge` previously rejected only `valid_to` *before* `valid_from` (`vt.Before(vf)`), letting equal instants through. The comparison is on parsed instants, so two equal moments written with different RFC3339 offsets are caught | Keep accepting equal endpoints (a never-matching fact); reject on raw string comparison | Stricter than before (a previously-accepted equal-endpoint write now errors) — a bug fix to the write contract, not a semantic change. `internal/graph/load.go` `validateEdge` | DECIDED (fix) |
+| **Key uniqueness is enforced by the loader *across loads and labels*, not only within a batch** | The 2026-10-15 decision named "loader-enforced uniqueness"; the loader only checked *in-batch*, so `CREATE` silently added a second node for a key loaded earlier. Edge endpoints and `ResolveEntity` match by key alone, so a duplicate splits or cross-products them (and can mask an E6 group). `LoadNodes` now rejects any batch key already present in the graph before writing | DB unique constraint (still deferred); `MERGE` on key (a merge-shaped rewrite that would overwrite provenance); leave the limitation | Non-destructive: it **rejects** the batch, never merges or rewrites, so no canonical-identity semantics change and no provenance loss. This *implements* the loader enforcement the deferral always named; the DB-level constraint remains deferred (revisit before M2). Check-then-create is safe under the client mutex (loader is single-writer). `internal/graph/load.go` `LoadNodes`/`existingKeys` | DECIDED (follow-up) |
+
+Resolvers still never merge or guess (`graph.ResolveEntity`, 4 deterministic
+tiers, ambiguity → candidate list); the guard removes the only path that could
+have produced two nodes sharing a key.
+
+| Decision | Why | Alternatives | Tradeoffs / limitations | Status |
+|---|---|---|---|---|
+| **Staleness is documented as observed-time; no universal stale threshold is defined** | Freshness already derives from `observed_at` and is returned on every `Provenance` (`internal/knowledge/knowledge.go`); a `valid_to` in the past means *historically expired for that era*, not a stale source. Inventing a threshold would mint a policy no one asked for and mislabel legitimate history (`docs/SCHEMA.md` §5/§6) | Add a configurable stale threshold + stale/not-stale label; add a computed `age` field now; leave staleness entirely for a later slice | No new field or label in v1: consumers see raw `observed_at` and decide. A future freshness policy must be recorded here before any labeling code lands | DECIDED (documented, no threshold) |
+
 ## Notes
 New decisions must be added here. Mark as DECIDED only after team consensus during/at hackathon start.
 

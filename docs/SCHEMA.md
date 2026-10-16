@@ -200,6 +200,16 @@ Rules:
   infinitely old claim; the loader rejects it at write
   (`internal/graph/load.go` `validateEdge`), and query code must surface or
   omit such rows, never treat them as always valid.
+- **An empty window is rejected.** When both endpoints are present, `valid_to`
+  must be strictly after `valid_from` (compared as instants, so two equal
+  moments written with different offsets are caught); the half-open predicate
+  matches nothing otherwise (`internal/graph/load.go` `validateEdge`).
+- **Staleness is observed-time, not valid-time.** Freshness is computed from
+  `observed_at` ("when TRON learned it"); a `valid_to` in the past means the
+  fact is *historically expired for that era*, not that the source is stale.
+  No universal stale threshold is defined — surfacing must report the raw
+  `observed_at`/age, not a stale/not-stale label, until a policy is explicitly
+  decided (`planning/decision-log.md`, 2026-10-16).
 - Event edges need no window; use the event timestamp.
 
 ## 6. Lifecycle: change, staleness, contradiction, correction, deletion
@@ -217,9 +227,12 @@ Rules:
 ## 7. Identity, provenance, and naming (unchanged, restated)
 
 - **Identity**: `key = "<src>:<native-id>"`. **Required** unique and indexed
-  per label; the current implementation ships a **non-unique** index only
-  (database-level enforcement deferred 2026-10-15 — a known limitation, not a
-  relaxation; [`GRAPH_MODEL.md`](GRAPH_MODEL.md) Indexes, `OPEN_QUESTIONS.md`,
+  per label; the current implementation ships a **non-unique** index, so
+  uniqueness is enforced by the bulk loader — in-batch **and, since
+  2026-10-16, across loads and labels** (`LoadNodes` rejects a batch key that
+  already exists, before writing) — and database-level enforcement stays
+  deferred 2026-10-15 (a known limitation, not a relaxation;
+  [`GRAPH_MODEL.md`](GRAPH_MODEL.md) Indexes, `OPEN_QUESTIONS.md`,
   `planning/decision-log.md`).
 - **Provenance minimum on every fact**: `src_type`, `src_ref`, `observed_at`,
   `extraction`, `valid_from`/`valid_to` (state edges). `confidence` only when

@@ -84,14 +84,21 @@ implementation to the target organizational brain.
     `POST /v1/conflicts` exposes them; E6 is **IMPLEMENTED** (evidence below).
   - **Identity / duplicate behavior** — single-source resolution only; the
     `key` uniqueness requirement is **not** database-enforced (non-unique
-    index; loader in-batch check only), *decided deferral, not an open
-    question* (2026-10-15). E1 is **PARTIAL**.
+    index). The loader now enforces uniqueness **across loads and labels**
+    (2026-10-16: `LoadNodes` rejects any batch key already present, before
+    writing — non-destructive, no merge), not just in-batch. E1 is
+    **PARTIAL** (multi-source merge still deferred; DB constraint still
+    deferred 2026-10-15).
    - **Evidence** — E5/E6 suites green (2026-10-16: `TestFindOwnerAsOf`,
      `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`,
      `TestFindConflicts`, `TestEndpoints/conflicts`, `load_test.go`); E1 now
      has a runnable identity fixture (2026-10-16: `TestResolveEntity` tiers +
-     `TestDuplicateKeyAcrossLoadsIsSurfacedNotMerged`, which pins the
-     duplicate-key behavior as *surfaced, not merged*).
+     `TestDuplicateKeyAcrossLoadsIsRejected`, which proves the loader rejects
+     cross-load/cross-label duplicate keys and the resolver stays unambiguous).
+   - **Staleness** — **documented, no code** (2026-10-16): freshness is
+     `observed_at`-based and already returned on every `Provenance`; no
+     universal stale threshold is defined, so nothing is labeled stale
+     (`docs/SCHEMA.md` §5/§6, decision-log).
 - **Delivered — E5 (2026-10-16)**:
   1. ✅ `internal/graph`: optional `as_of` on `FindOwner`/`FindExperts` +
      half-open predicate + far-future sentinel default; `TestFindOwnerAsOf`,
@@ -113,10 +120,11 @@ implementation to the target organizational brain.
      baseline seed still yields zero conflicts.
   4. ✅ Statuses flipped in `TRACKER.md`/`EVALUATION.md`/`AGENT_SPEC.md` after
      the tests passed.
-- **Next slice — M1 remainder**: staleness surfacing (`observed_at`-based
-  freshness) is still open; the runnable E1 identity fixture is delivered
-  (2026-10-16). Cross-load duplicate-`key` enforcement stays deferred
-  (`OPEN_QUESTIONS.md`, decision-log 2026-10-15).
+- **Next slice — M1 remainder**: staleness is documented (no threshold by
+  decision, 2026-10-16); the runnable E1 identity fixture is delivered and the
+  loader cross-load/label duplicate-key guard is implemented (2026-10-16).
+  DB-level `key` uniqueness stays deferred (`OPEN_QUESTIONS.md`, decision-log
+  2026-10-15).
 - **E6 acceptance criteria (testable)**: overlapping-but-touching half-open
   intervals do **not** flag; genuinely overlapping incompatible claims do;
   every flagged edge carries `src_ref`/`valid_from`/`valid_to`; baseline
@@ -132,9 +140,12 @@ implementation to the target organizational brain.
   provenance; `/v1/owner`+`/v1/experts` reject malformed `as_of` with 400;
   suite runs against live FalkorDB (skipped under `-short`)
   (`EVALUATION.md` §2.2).
-- **Definition of done**: suites E1/E5/E6 green (E5/E6 green 2026-10-16; E1 open); schema changes recorded in ADR.
+- **Definition of done**: suites E1/E5/E6 green (E5/E6 green 2026-10-16; E1
+  PARTIAL — loader-enforced uniqueness + resolvable identity fixture landed
+  2026-10-16, multi-source merge still deferred); schema changes recorded in ADR.
 - **Risks / deferred**: real multi-source identity resolution deferred to M2;
-  duplicate-`key` masking risk until DB uniqueness is revisited (backlog).
+  DB-level `key` uniqueness still deferred (loader now rejects cross-load/label
+  duplicates, so the masking risk is limited to non-loader writers).
 - **Explicitly NOT done**: no real sources yet.
 
 ## Milestone 2 — Data ingestion & synchronization
