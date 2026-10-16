@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/ANUBprad/tr0n/internal/knowledge"
 )
 
 // evidenceFixture is one entity's neighbourhood plus deliberately
@@ -97,13 +99,25 @@ func TestAssembleEvidenceRelevantAndProvenanced(t *testing.T) {
 		if f.Entity != "service:payments" {
 			t.Errorf("fact anchored to the wrong entity: %+v", f)
 		}
-		if f.Provenance.SrcRef == "" || f.Provenance.ObservedAt == "" || f.Provenance.SrcType == "" {
+		if f.Provenance.SrcRef == "" || f.Provenance.ObservedAt == "" ||
+			f.Provenance.SrcType == "" || f.Provenance.Extraction == "" {
 			t.Errorf("provenance dropped: %+v", f)
+		}
+		if f.Neighbor.Key == "" || f.Neighbor.Label == "" {
+			t.Errorf("neighbor identity dropped: %+v", f)
+		}
+		if f.Direction != "in" && f.Direction != "out" {
+			t.Errorf("direction must be in|out: %+v", f)
 		}
 		if f.Relation == "OWNS" {
 			ownCount++
 			if f.Provenance.ValidFrom == "" {
 				t.Errorf("state relation lost its validity window: %+v", f)
+			}
+			// The superseded ada→payments fact carries a closed window;
+			// retrieval must preserve valid_to, not just valid_from.
+			if f.Neighbor.Key == "person:ada" && f.Provenance.ValidTo != "2026-06-01T00:00:00Z" {
+				t.Errorf("closed window lost its valid_to: %+v", f.Provenance)
 			}
 		}
 	}
@@ -158,7 +172,7 @@ func TestAssembleEvidenceAsOfHalfOpen(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Status != EvidenceStatusOK {
+		if got.Status != EvidenceStatusOK && got.Status != EvidenceStatusEmpty {
 			t.Fatalf("status at %q: %+v", asOf, got)
 		}
 		seen := map[string]bool{}
@@ -191,6 +205,31 @@ func TestAssembleEvidenceAsOfHalfOpen(t *testing.T) {
 	all := owners("")
 	if !all["person:ada"] || !all["person:bob"] {
 		t.Errorf("omitted as_of must keep every window: %v", all)
+	}
+	// Immediately on either side of a boundary, and an offset spelling of
+	// the handoff instant itself.
+	if jb := owners("2026-05-31T23:59:59Z"); !jb["person:ada"] {
+		t.Errorf("just before valid_to is still ada's: %v", jb)
+	}
+	if ja := owners("2026-06-01T00:00:01Z"); ja["person:ada"] || !ja["person:bob"] {
+		t.Errorf("just after the handoff is bob's: %v", ja)
+	}
+	if bs := owners("2026-01-31T23:59:59Z"); bs["person:ada"] {
+		t.Errorf("before valid_from must exclude ada: %v", bs)
+	}
+	// 2026-06-01T05:30:00+05:30 is the same instant as 2026-06-01T00:00:00Z,
+	// so it is the boundary: ada expired, bob current.
+	if off := owners("2026-06-01T05:30:00+05:30"); off["person:ada"] || !off["person:bob"] {
+		t.Errorf("offset-equivalent instant must behave as the boundary: %v", off)
+	}
+
+	// A request instant is echoed back normalized to canonical UTC.
+	norm, err := c.AssembleEvidence(EvidenceRequest{Entity: "payments-api", AsOf: "2026-06-01T05:30:00+05:30"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if norm.AsOf != "2026-06-01T00:00:00Z" {
+		t.Errorf("as_of should echo canonical UTC, got %q", norm.AsOf)
 	}
 
 	// State relations filter; the event fact on the same anchor survives
@@ -276,6 +315,60 @@ func TestAssembleEvidenceExplicitOutcomes(t *testing.T) {
 			t.Error("want an error for an empty entity")
 		}
 	})
+
+	// A relationship filter is a scope, not a lookup: an unknown or
+	// mistyped type keeps nothing and yields empty, never an error and
+	// never "no filter".
+	t.Run("unknown relation filter matches nothing", func(t *testing.T) {
+		got, err := c.AssembleEvidence(EvidenceRequest{
+			Entity: "payments-api", Relations: []string{"NOT_A_RELATION"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Status != EvidenceStatusEmpty || len(got.Facts) != 0 {
+			t.Fatalf("unknown relation filter: %+v", got)
+		}
+	})
+}
+
+// A state edge whose stored window is unparseable cannot come through
+// LoadEdges (validateEdge rejects it), so retrieval's own guard is the
+// only line of defence if one exists. It must not be treated as
+// always-valid: with an as_of it is excluded, exactly as E6 omits an
+// unreadable window rather than assuming it never closes.
+func TestAssembleEvidenceExcludesMalformedStoredWindow(t *testing.T) {
+	c := newTestClient(t)
+	mustLoadNodes(t, c, "Person", []map[string]interface{}{nodeRow("person:x")})
+	service := nodeRow("service:y")
+	service["name"] = "widget-api"
+	mustLoadNodes(t, c, "Service", []map[string]interface{}{service})
+	props := edgeProps()
+	props["valid_from"] = "not-a-date"
+	if _, err := c.g.Query(`
+	MATCH (a {key:'person:x'}), (b {key:'service:y'})
+	CREATE (a)-[e:OWNS]->(b) SET e = $props`,
+		map[string]interface{}{"props": props}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Without as_of there is no temporal restriction, so the fact is
+	// returned as the graph holds it.
+	full, err := c.AssembleEvidence(EvidenceRequest{Entity: "widget-api"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if full.Status != EvidenceStatusOK || len(full.Facts) != 1 {
+		t.Fatalf("no as_of: window not consulted: %+v", full)
+	}
+	// With as_of the malformed window is excluded, not accepted.
+	scoped, err := c.AssembleEvidence(EvidenceRequest{Entity: "widget-api", AsOf: "2026-03-01T00:00:00Z"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scoped.Status != EvidenceStatusEmpty || len(scoped.Facts) != 0 {
+		t.Fatalf("malformed stored window must be excluded under as_of: %+v", scoped)
+	}
 }
 
 // Both documented bounds bite, and truncation is reported rather than
@@ -331,6 +424,37 @@ func TestAssembleEvidenceBounds(t *testing.T) {
 			t.Errorf("default size bound exceeded: %d", got.Bytes)
 		}
 	})
+
+	// A single fact can exceed the byte budget on its own. The result then
+	// holds no facts at all, which must be said explicitly rather than
+	// reported as ok — an "ok" with an empty fact list reads as usable
+	// evidence whose absence the caller cannot explain.
+	t.Run("byte bound below one fact is an explicit outcome", func(t *testing.T) {
+		got, err := c.AssembleEvidence(EvidenceRequest{Entity: "payments-api", MaxBytes: 8})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.Facts) != 0 || !got.Truncated ||
+			got.TruncatedReason != EvidenceTruncatedBySize {
+			t.Fatalf("everything over the byte bound: %+v", got)
+		}
+		if got.Status != EvidenceStatusOverBudget {
+			t.Errorf("an empty result from the size bound must not claim ok: %+v", got)
+		}
+	})
+
+	t.Run("count and byte bounds both report", func(t *testing.T) {
+		got, err := c.AssembleEvidence(EvidenceRequest{Entity: "payments-api", Limit: 1, MaxBytes: 8})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.TruncatedReason != EvidenceTruncatedByCount+"+"+EvidenceTruncatedBySize {
+			t.Fatalf("both bounds must be recorded: %+v", got)
+		}
+		if got.Status != EvidenceStatusOverBudget {
+			t.Errorf("both bounds emptied the result: %+v", got)
+		}
+	})
 }
 
 // The same facts come back in the same order no matter what order the
@@ -365,6 +489,43 @@ func TestAssembleEvidenceDeterministicOrdering(t *testing.T) {
 			t.Errorf("facts not sorted:\n %s\n %s",
 				factOrder(second.Facts[i-1]), factOrder(second.Facts[i]))
 		}
+	}
+}
+
+// The documented order is not enough when two facts share every primary
+// key: the order must be a total order over the fact's fields, or the
+// survivors of a truncation depend on the order the store happened to
+// return. Pure unit — no FalkorDB.
+func TestAssembleEvidenceOrderIsTotal(t *testing.T) {
+	base := EvidenceFact{
+		Entity:    "service:payments",
+		Relation:  "OWNS",
+		Direction: "out",
+		Neighbor:  NodeRef{Label: "Person", Key: "person:ada", Name: "Ada"},
+		Provenance: knowledge.Provenance{
+			SrcType: "service_registry", SrcRef: "acme-org/synthetic/v1",
+			ObservedAt: "2026-10-01T00:00:00Z", Extraction: "deterministic",
+			ValidFrom: "2026-02-01T00:00:00Z",
+		},
+	}
+	// Identical on all six primary sort keys; distinguishable only by
+	// observation time.
+	older, newer := base, base
+	older.Provenance.ObservedAt = "2026-09-01T00:00:00Z"
+	newer.Provenance.ObservedAt = "2026-10-15T00:00:00Z"
+
+	forward := []EvidenceFact{older, newer}
+	backward := []EvidenceFact{newer, older}
+	sortEvidenceFacts(forward)
+	sortEvidenceFacts(backward)
+
+	fa, _ := json.Marshal(forward)
+	fb, _ := json.Marshal(backward)
+	if string(fa) != string(fb) {
+		t.Fatalf("facts tied on the primary keys fell back to input order:\n a: %s\n b: %s", fa, fb)
+	}
+	if forward[0].Provenance.ObservedAt != older.Provenance.ObservedAt {
+		t.Errorf("tie-break is not deterministic: %s first", forward[0].Provenance.ObservedAt)
 	}
 }
 

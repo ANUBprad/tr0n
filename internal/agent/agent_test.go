@@ -342,6 +342,101 @@ func TestAssembleContextToolSuppliesEvidence(t *testing.T) {
 			t.Errorf("missing entity must error the turn: %q", s.Turns()[0].Err)
 		}
 	})
+
+	t.Run("resolved entity with no in-scope fact is empty, not an error", func(t *testing.T) {
+		s := New(DefaultSystem, tools)
+		if err := s.Run(context.Background(), scripted(
+			Decision{Calls: []Call{{Name: "assemble_context", Args: json.RawMessage(
+				`{"entity":"payments-api","relations":["WORKED_ON"]}`)}}},
+			Decision{Answer: "no such evidence"},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		var ctx graph.EvidenceContext
+		blob, _ := json.Marshal(s.Turns()[0].Result)
+		if err := json.Unmarshal(blob, &ctx); err != nil {
+			t.Fatal(err)
+		}
+		if ctx.Status != graph.EvidenceStatusEmpty || len(ctx.Facts) != 0 || len(s.Turns()[0].Err) != 0 {
+			t.Errorf("empty scope must be explicit: %+v (err %q)", ctx, s.Turns()[0].Err)
+		}
+	})
+
+	t.Run("unknown relation filter is empty, never a silent no-filter", func(t *testing.T) {
+		s := New(DefaultSystem, tools)
+		if err := s.Run(context.Background(), scripted(
+			Decision{Calls: []Call{{Name: "assemble_context", Args: json.RawMessage(
+				`{"entity":"payments-api","relations":["NOT_A_RELATION"]}`)}}},
+			Decision{Answer: "nothing in that scope"},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		blob, _ := json.Marshal(s.Turns()[0].Result)
+		if !strings.Contains(string(blob), `"status":"empty"`) {
+			t.Errorf("unknown relation filter must yield empty, not the full set: %s", blob)
+		}
+	})
+
+	t.Run("invalid as_of is a turn error, not a silent no-filter", func(t *testing.T) {
+		s := New(DefaultSystem, tools)
+		if err := s.Run(context.Background(), scripted(
+			Decision{Calls: []Call{{Name: "assemble_context", Args: json.RawMessage(
+				`{"entity":"payments-api","as_of":"yesterday"}`)}}},
+			Decision{Answer: "recovered"},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(s.Turns()[0].Err, "RFC3339") {
+			t.Errorf("malformed as_of must error the turn: %q", s.Turns()[0].Err)
+		}
+	})
+
+	t.Run("unsatisfiable byte bound is over_budget, not ok", func(t *testing.T) {
+		s := New(DefaultSystem, tools)
+		if err := s.Run(context.Background(), scripted(
+			Decision{Calls: []Call{{Name: "assemble_context", Args: json.RawMessage(
+				`{"entity":"payments-api","max_bytes":8}`)}}},
+			Decision{Answer: "budget too small"},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		var ctx graph.EvidenceContext
+		blob, _ := json.Marshal(s.Turns()[0].Result)
+		if err := json.Unmarshal(blob, &ctx); err != nil {
+			t.Fatal(err)
+		}
+		if ctx.Status != graph.EvidenceStatusOverBudget || !ctx.Truncated || len(ctx.Facts) != 0 {
+			t.Errorf("empty-from-size must be explicit: %+v", ctx)
+		}
+	})
+
+	t.Run("ambiguous entity returns candidates, never a pick", func(t *testing.T) {
+		collide := map[string]interface{}{
+			"key": "service:dupe", "name": "auth-gateway",
+			"src_type": "service_registry", "src_ref": "acme-org/synthetic/v1",
+			"observed_at": "2026-10-01T00:00:00Z", "extraction": "deterministic",
+		}
+		if err := c.LoadNodes("Service", []map[string]interface{}{collide}); err != nil {
+			t.Fatalf("load a colliding display name: %v", err)
+		}
+		s := New(DefaultSystem, tools)
+		if err := s.Run(context.Background(), scripted(
+			Decision{Calls: []Call{{Name: "assemble_context", Args: json.RawMessage(
+				`{"entity":"auth-gateway"}`)}}},
+			Decision{Answer: "which one?"},
+		)); err != nil {
+			t.Fatal(err)
+		}
+		var ctx graph.EvidenceContext
+		blob, _ := json.Marshal(s.Turns()[0].Result)
+		if err := json.Unmarshal(blob, &ctx); err != nil {
+			t.Fatal(err)
+		}
+		if ctx.Status != graph.EvidenceStatusAmbiguous || ctx.Entity != nil ||
+			len(ctx.Facts) != 0 || len(ctx.Candidates) < 2 {
+			t.Errorf("ambiguity must surface candidates and pick none: %+v", ctx)
+		}
+	})
 }
 
 func getenv(key, fallback string) string {

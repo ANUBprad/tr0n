@@ -12,6 +12,7 @@ package graph
 // is read-only and never creates a stored INFERENCE/RECOMMENDATION.
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -38,6 +39,7 @@ const (
 	EvidenceStatusNotFound   = "not_found"
 	EvidenceStatusAmbiguous  = "ambiguous"
 	EvidenceStatusEmpty      = "empty"
+	EvidenceStatusOverBudget = "over_budget"
 	EvidenceTruncatedByCount = "count"
 	EvidenceTruncatedBySize  = "size"
 )
@@ -83,10 +85,12 @@ type EvidenceFact struct {
 
 // EvidenceContext is the bounded retrieval result. Status is always set:
 //
-//	ok         facts were found (Facts may be bounded, see Truncated)
-//	not_found  the entity does not resolve, or resolves to a missing node
-//	ambiguous  more than one entity matches — Candidates, no Facts, no pick
-//	empty      the entity resolved but no fact is in scope
+//	ok           facts were found and returned (Facts may be bounded, see Truncated)
+//	not_found    the entity does not resolve, or resolves to a missing node
+//	ambiguous    more than one entity matches — Candidates, no Facts, no pick
+//	empty        the entity resolved but no fact is in scope
+//	over_budget  the entity resolved and had in-scope facts, but the byte
+//	             bound excluded every one (Facts empty, Truncated true)
 type EvidenceContext struct {
 	Entity     *NodeRef       `json:"entity,omitempty"`
 	Status     string         `json:"status"`
@@ -217,6 +221,15 @@ func (c *Client) AssembleEvidence(req EvidenceRequest) (EvidenceContext, error) 
 	ctx.Facts = facts
 	ctx.Bytes = total
 	ctx.Truncated = ctx.TruncatedReason != ""
+	if len(facts) == 0 {
+		// The byte bound is unsatisfiable for this result: even the
+		// smallest single in-scope fact exceeds max_bytes, so all of
+		// them were dropped. "ok" is documented as "facts were found
+		// and returned" — with an empty fact list it would read as
+		// usable evidence, or as evidence-less, depending on the
+		// reader. Report the explicit outcome instead.
+		ctx.Status = EvidenceStatusOverBudget
+	}
 	return ctx, nil
 }
 
@@ -251,28 +264,31 @@ func factValidAt(rel string, p knowledge.Provenance, asOf time.Time) bool {
 	return vt.After(asOf) // valid_to > as_of
 }
 
-// sortEvidenceFacts gives every result a store-independent order:
-// anchor, relation, direction, neighbor, then the window and source.
+// sortEvidenceFacts gives every result a store-independent order.
 func sortEvidenceFacts(facts []EvidenceFact) {
-	sort.Slice(facts, func(i, j int) bool {
-		a, b := facts[i], facts[j]
-		if a.Entity != b.Entity {
-			return a.Entity < b.Entity
-		}
-		if a.Relation != b.Relation {
-			return a.Relation < b.Relation
-		}
-		if a.Direction != b.Direction {
-			return a.Direction < b.Direction
-		}
-		if a.Neighbor.Key != b.Neighbor.Key {
-			return a.Neighbor.Key < b.Neighbor.Key
-		}
-		if a.Provenance.ValidFrom != b.Provenance.ValidFrom {
-			return a.Provenance.ValidFrom < b.Provenance.ValidFrom
-		}
-		return a.Provenance.SrcRef < b.Provenance.SrcRef
-	})
+	sort.Slice(facts, func(i, j int) bool { return factLess(facts[i], facts[j]) })
+}
+
+// factLess is a total order over every field of a fact. The first six
+// keys are the documented order (anchor, relation, direction, neighbor,
+// window, source); the remaining fields make otherwise-equal facts
+// deterministic instead of inheriting whichever order the store returned
+// them in — which is what decides who survives a truncation.
+func factLess(a, b EvidenceFact) bool {
+	return cmp.Or(
+		cmp.Compare(a.Entity, b.Entity),
+		cmp.Compare(a.Relation, b.Relation),
+		cmp.Compare(a.Direction, b.Direction),
+		cmp.Compare(a.Neighbor.Key, b.Neighbor.Key),
+		cmp.Compare(a.Provenance.ValidFrom, b.Provenance.ValidFrom),
+		cmp.Compare(a.Provenance.SrcRef, b.Provenance.SrcRef),
+		cmp.Compare(a.Provenance.ObservedAt, b.Provenance.ObservedAt),
+		cmp.Compare(a.Provenance.SrcType, b.Provenance.SrcType),
+		cmp.Compare(a.Provenance.Extraction, b.Provenance.Extraction),
+		cmp.Compare(a.Provenance.ValidTo, b.Provenance.ValidTo),
+		cmp.Compare(a.Neighbor.Label, b.Neighbor.Label),
+		cmp.Compare(a.Neighbor.Name, b.Neighbor.Name),
+	) < 0
 }
 
 // factsRowSize is the serialized size of one fact. Marshal cannot fail
