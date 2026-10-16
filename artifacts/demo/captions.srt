@@ -1,0 +1,24 @@
+1
+00:00:00,000 --> 00:00:12,000
+TRON | Track 03: Company Brain
+Captured walkthrough of the running synthetic demo. Ownership follows sourced OWNS edges.
+
+2
+00:00:12,000 --> 00:00:24,000
+Expertise is computed from ownership, contributions and incident relationships.
+Facts, inferences and recommendations remain distinct.
+
+3
+00:00:24,000 --> 00:00:36,000
+Decision rationale links to its ADR, chat, ticket and meeting.
+Inspect a source record to see its content and observation date.
+
+4
+00:00:36,000 --> 00:00:48,000
+Incident history follows AFFECTS and RESOLVED_BY relationships.
+The answer shows prior failures and the people who resolved them.
+
+5
+00:00:48,000 --> 00:01:00,000
+Download a sourced handoff draft for human review.
+FalkorDB powers every answer. AI-assisted implementation; no LLM key required.
