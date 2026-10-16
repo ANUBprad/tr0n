@@ -426,6 +426,189 @@ func (c *Client) FindRelatedIncidents(serviceKey, since, keyword string) ([]Inci
 	return out, nil
 }
 
+// Conflict is one group of state-relation edges whose claims are
+// incompatible over overlapping half-open validity (rule contradiction/v1).
+type Conflict struct {
+	Relation string         `json:"relation"`
+	Slot     string         `json:"slot"`
+	Edges    []ConflictEdge `json:"edges"`
+}
+
+// ConflictEdge is one edge participating in a conflict: the claimant
+// (subject) and the slot it claims, plus the edge's full provenance so
+// every disagreeing source surfaces and none is silently picked.
+type ConflictEdge struct {
+	From       string               `json:"from"`
+	FromName   string               `json:"from_name,omitempty"`
+	To         string               `json:"to"`
+	Provenance knowledge.Provenance `json:"provenance"`
+}
+
+// ConflictResult is the INFERENCE envelope every computed result uses
+// (AGENT_SPEC FindConflicts): layer + rule_id + the conflict groups.
+type ConflictResult struct {
+	Layer     string     `json:"layer"`
+	RuleID    string     `json:"rule_id"`
+	Conflicts []Conflict `json:"conflicts"`
+}
+
+// exclusiveRelations declare a single-valued slot — one edge per target
+// per era. v1: only OWNS (docs/GRAPH_MODEL.md Exclusivity). A state
+// relation absent here can never contradict: a subject may legitimately
+// reach several targets, and a repeated same-counterpart claim is
+// corroboration, not contradiction.
+var exclusiveRelations = map[string]bool{"OWNS": true}
+
+// FindConflicts derives contradiction/v1 at query time (never stored,
+// A9): for each exclusive state relation, edges of the same target whose
+// half-open windows overlap and whose claimants differ. An empty relation
+// scans all state relations; a non-exclusive relation yields no conflicts
+// by design. key, when set, keeps only groups on that slot or involving
+// that claimant — always the whole group, so no disagreeing source is
+// hidden. Order is stable — groups by (relation, slot), members by
+// (from, valid_from, src_ref).
+// ponytail: O(n²) pairing within one slot's edges — fine at demo scale;
+// upgrade path = sort-by-start sweep if a slot ever holds many claims.
+func (c *Client) FindConflicts(relation, key string) (*ConflictResult, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if relation != "" && !IsStateRelation(relation) {
+		return nil, fmt.Errorf("relation %q is not a state relation", relation)
+	}
+	res, err := c.g.ROQuery(`
+	MATCH (a)-[r]->(b)
+	RETURN type(r) AS relation, a.key AS from_key, coalesce(a.name, a.title) AS from_name,
+	       b.key AS to_key,
+	       r.src_type AS src_type, r.src_ref AS src_ref, r.observed_at AS observed_at,
+	       r.extraction AS extraction, r.valid_from AS valid_from, r.valid_to AS valid_to`,
+		nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("find conflicts: %w", err)
+	}
+
+	type claim struct {
+		from  string
+		name  string
+		prov  knowledge.Provenance
+		fromT time.Time
+		toT   time.Time
+	}
+	// One group per (relation, slot). Slots are the target key — the
+	// single-valued side for an exclusive relation.
+	type group struct {
+		rel, slot string
+		claims    []claim
+	}
+	byGroup := map[string]int{}
+	var groups []group
+
+	for res.Next() {
+		rec := res.Record()
+		rel := field(rec, "relation")
+		if relation != "" {
+			if rel != relation {
+				continue
+			}
+		} else if !IsStateRelation(rel) {
+			continue
+		}
+		prov := recProvenance(rec)
+		// A state edge whose window cannot be parsed is an integrity
+		// anomaly: omitted from detection, never treated as always-valid.
+		fromT, err := time.Parse(time.RFC3339, prov.ValidFrom)
+		if err != nil {
+			continue
+		}
+		var toT time.Time
+		if prov.ValidTo != "" {
+			toT, err = time.Parse(time.RFC3339, prov.ValidTo)
+			if err != nil {
+				continue
+			}
+		}
+		cl := claim{from: field(rec, "from_key"), name: field(rec, "from_name"), prov: prov, fromT: fromT, toT: toT}
+		slot := field(rec, "to_key")
+		gk := rel + "\x00" + slot
+		gi, ok := byGroup[gk]
+		if !ok {
+			gi = len(groups)
+			byGroup[gk] = gi
+			groups = append(groups, group{rel: rel, slot: slot})
+		}
+		groups[gi].claims = append(groups[gi].claims, cl)
+	}
+
+	sort.Slice(groups, func(i, j int) bool {
+		if groups[i].rel != groups[j].rel {
+			return groups[i].rel < groups[j].rel
+		}
+		return groups[i].slot < groups[j].slot
+	})
+
+	out := &ConflictResult{Layer: "INFERENCE", RuleID: "contradiction/v1", Conflicts: []Conflict{}}
+	for _, g := range groups {
+		if !exclusiveRelations[g.rel] {
+			continue
+		}
+		marked := make([]bool, len(g.claims))
+		for i := 0; i < len(g.claims); i++ {
+			for j := i + 1; j < len(g.claims); j++ {
+				if g.claims[i].from == g.claims[j].from {
+					continue // same counterpart = corroboration
+				}
+				if windowsOverlap(g.claims[i].fromT, g.claims[i].toT, g.claims[j].fromT, g.claims[j].toT) {
+					marked[i], marked[j] = true, true
+				}
+			}
+		}
+		var edges []ConflictEdge
+		for i, cl := range g.claims {
+			if marked[i] {
+				edges = append(edges, ConflictEdge{From: cl.from, FromName: cl.name, To: g.slot, Provenance: cl.prov})
+			}
+		}
+		if len(edges) == 0 {
+			continue
+		}
+		if key != "" && g.slot != key && !groupHasClaimant(edges, key) {
+			continue
+		}
+		sort.Slice(edges, func(a, b int) bool {
+			if edges[a].From != edges[b].From {
+				return edges[a].From < edges[b].From
+			}
+			if edges[a].Provenance.ValidFrom != edges[b].Provenance.ValidFrom {
+				return edges[a].Provenance.ValidFrom < edges[b].Provenance.ValidFrom
+			}
+			return edges[a].Provenance.SrcRef < edges[b].Provenance.SrcRef
+		})
+		out.Conflicts = append(out.Conflicts, Conflict{Relation: g.rel, Slot: g.slot, Edges: edges})
+	}
+	return out, nil
+}
+
+// windowsOverlap reports whether half-open intervals [from, to) overlap.
+// A zero `to` is open-ended (still current). Intervals that only touch at
+// an endpoint (aEnd == bStart) do not overlap.
+func windowsOverlap(aFrom, aTo, bFrom, bTo time.Time) bool {
+	if !aTo.IsZero() && !bFrom.Before(aTo) {
+		return false
+	}
+	if !bTo.IsZero() && !aFrom.Before(bTo) {
+		return false
+	}
+	return true
+}
+
+func groupHasClaimant(edges []ConflictEdge, key string) bool {
+	for _, e := range edges {
+		if e.From == key {
+			return true
+		}
+	}
+	return false
+}
+
 // NodeEvidence is one input key re-fetched in full plus one hop of
 // surrounding context (AGENT_SPEC TraceEvidence — the "why do you
 // believe this?" drill-down).
@@ -657,6 +840,7 @@ func provFrom(rec *falkordb.Record, prefix string) knowledge.Provenance {
 		ObservedAt: field(rec, prefix+"observed_at"),
 		Extraction: field(rec, prefix+"extraction"),
 		ValidFrom:  field(rec, prefix+"valid_from"),
+		ValidTo:    field(rec, prefix+"valid_to"),
 	}
 }
 

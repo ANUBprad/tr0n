@@ -557,6 +557,173 @@ func TestResolveEntity(t *testing.T) {
 	}
 }
 
+// E6 contradiction detection (docs/EVALUATION.md §2.1): incompatible
+// state-relation claims over overlapping half-open windows surface with
+// full provenance; touching intervals, same-owner corroboration,
+// non-exclusive relations, and event edges never flag.
+func TestFindConflicts(t *testing.T) {
+	c := newTestClient(t)
+
+	// Full RFC3339 windows: FindConflicts refuses to treat an unreadable
+	// window as always-valid, so fixtures must be parseable instants.
+	prov := func(ref, from, to string) string {
+		b := "{src_type: 'service_registry', src_ref: '" + ref +
+			"', observed_at: '2026-10-01T00:00:00Z', extraction: 'deterministic', valid_from: '" + from + "'"
+		if to != "" {
+			b += ", valid_to: '" + to + "'"
+		}
+		return b + "}"
+	}
+	event := func(ref string) string {
+		return "{src_type: 'adr_repo', src_ref: '" + ref +
+			"', observed_at: '2026-10-01T00:00:00Z', extraction: 'deterministic'}"
+	}
+	seed := `
+	CREATE (alice:Person {key: 'person:alice', name: 'Alice'}),
+	       (bob:Person {key: 'person:bob', name: 'Bob'}),
+	       (carol:Person {key: 'person:carol', name: 'Carol'}),
+	       (dave:Person {key: 'person:dave', name: 'Dave'}),
+	       (erin:Person {key: 'person:erin', name: 'Erin'}),
+	       (payments:Service {key: 'service:payments', name: 'payments'}),
+	       (billing:Service {key: 'service:billing', name: 'billing'}),
+	       (search:Service {key: 'service:search', name: 'search'}),
+	       (team:Team {key: 'team:core', name: 'core'}),
+	       (atlas:Project {key: 'project:atlas', name: 'atlas'}),
+	       (doc:Document {key: 'doc:1', title: 'runbook'}),
+	       (alice)-[:OWNS ` + prov("registry-a", "2026-01-01T00:00:00Z", "") + `]->(payments),
+	       (bob)-[:OWNS ` + prov("registry-b", "2026-03-01T00:00:00Z", "2026-06-01T00:00:00Z") + `]->(payments),
+	       (alice)-[:OWNS ` + prov("registry-a", "2026-01-01T00:00:00Z", "") + `]->(billing),
+	       (alice)-[:OWNS ` + prov("registry-a2", "2026-02-01T00:00:00Z", "") + `]->(billing),
+	       (carol)-[:OWNS ` + prov("registry-c", "2026-01-01T00:00:00Z", "2026-04-01T00:00:00Z") + `]->(search),
+	       (dave)-[:OWNS ` + prov("registry-d", "2026-04-01T00:00:00Z", "") + `]->(search),
+	       (erin)-[:OWNS {src_type: 'service_registry', src_ref: 'registry-e', observed_at: '2026-10-01T00:00:00Z', extraction: 'deterministic'}]->(search),
+	       (alice)-[:WORKS_IN ` + prov("hr", "2026-01-01T00:00:00Z", "") + `]->(team),
+	       (bob)-[:WORKS_IN ` + prov("hr", "2026-01-01T00:00:00Z", "") + `]->(team),
+	       (alice)-[:WORKED_ON ` + prov("tracker", "2026-01-01T00:00:00Z", "") + `]->(atlas),
+	       (bob)-[:WORKED_ON ` + prov("tracker", "2026-02-01T00:00:00Z", "") + `]->(atlas),
+	       (alice)-[:AUTHORED ` + event("adr/1") + `]->(doc),
+	       (bob)-[:AUTHORED ` + event("adr/2") + `]->(doc)`
+	if _, err := c.g.Query(seed, nil, nil); err != nil {
+		t.Fatalf("seed fixture: %v", err)
+	}
+
+	t.Run("overlapping different owners flagged with provenance", func(t *testing.T) {
+		got, err := c.FindConflicts("", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Layer != "INFERENCE" || got.RuleID != "contradiction/v1" {
+			t.Fatalf("tagging: %+v", got)
+		}
+		if len(got.Conflicts) != 1 {
+			t.Fatalf("want exactly 1 conflict (payments), got %d: %+v", len(got.Conflicts), got.Conflicts)
+		}
+		conf := got.Conflicts[0]
+		if conf.Relation != "OWNS" || conf.Slot != "service:payments" {
+			t.Fatalf("group: %+v", conf)
+		}
+		if len(conf.Edges) != 2 || conf.Edges[0].From != "person:alice" || conf.Edges[1].From != "person:bob" {
+			t.Fatalf("both claimants must surface, sorted: %+v", conf.Edges)
+		}
+		if conf.Edges[0].Provenance.SrcRef != "registry-a" ||
+			conf.Edges[1].Provenance.SrcRef != "registry-b" ||
+			conf.Edges[1].Provenance.ValidFrom != "2026-03-01T00:00:00Z" ||
+			conf.Edges[1].Provenance.ValidTo != "2026-06-01T00:00:00Z" {
+			t.Errorf("provenance not carried: %+v", conf.Edges)
+		}
+	})
+
+	t.Run("touching intervals and same-owner are not conflicts", func(t *testing.T) {
+		corrob, err := c.FindConflicts("OWNS", "service:billing")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(corrob.Conflicts) != 0 {
+			t.Errorf("same-owner corroboration must not flag: %+v", corrob.Conflicts)
+		}
+		touching, err := c.FindConflicts("OWNS", "service:search")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(touching.Conflicts) != 0 {
+			t.Errorf("touching half-open handoff must not flag: %+v", touching.Conflicts)
+		}
+	})
+
+	t.Run("non-exclusive state relations never conflict", func(t *testing.T) {
+		for _, rel := range []string{"WORKS_IN", "WORKED_ON", "HAS_REPO", "DEPENDS_ON"} {
+			got, err := c.FindConflicts(rel, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Conflicts) != 0 {
+				t.Errorf("%s must not conflict: %+v", rel, got.Conflicts)
+			}
+		}
+	})
+
+	t.Run("key filter narrows to a slot or subject", func(t *testing.T) {
+		bySlot, err := c.FindConflicts("", "service:payments")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(bySlot.Conflicts) != 1 {
+			t.Errorf("by slot: %+v", bySlot.Conflicts)
+		}
+		bySubject, err := c.FindConflicts("", "person:alice")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(bySubject.Conflicts) != 1 {
+			t.Errorf("by subject: %+v", bySubject.Conflicts)
+		}
+		none, err := c.FindConflicts("", "no-such-key")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(none.Conflicts) != 0 {
+			t.Errorf("unknown key: %+v", none.Conflicts)
+		}
+	})
+
+	t.Run("empty result is an empty list and invalid relation errors", func(t *testing.T) {
+		got, err := c.FindConflicts("DEPENDS_ON", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Conflicts == nil || len(got.Conflicts) != 0 {
+			t.Errorf("want empty non-nil list: %+v", got.Conflicts)
+		}
+		if _, err := c.FindConflicts("KNOWS", ""); err == nil {
+			t.Error("a non-state relation filter must be an error")
+		}
+	})
+
+	t.Run("deterministic ordering", func(t *testing.T) {
+		a, err := c.FindConflicts("", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := c.FindConflicts("", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(a.Conflicts) != len(b.Conflicts) {
+			t.Fatalf("group count differs: %d vs %d", len(a.Conflicts), len(b.Conflicts))
+		}
+		for i := range a.Conflicts {
+			if a.Conflicts[i].Slot != b.Conflicts[i].Slot || len(a.Conflicts[i].Edges) != len(b.Conflicts[i].Edges) {
+				t.Fatalf("group %d differs: %+v vs %+v", i, a.Conflicts[i], b.Conflicts[i])
+			}
+			for j := range a.Conflicts[i].Edges {
+				if a.Conflicts[i].Edges[j].From != b.Conflicts[i].Edges[j].From {
+					t.Errorf("member %d.%d differs", i, j)
+				}
+			}
+		}
+	})
+}
+
 func basisByClass(t *testing.T, e knowledge.Expert, class string) knowledge.Basis {
 	t.Helper()
 	for _, b := range e.Basis {
