@@ -6,7 +6,62 @@ TRON connects people, teams, services, code contributions, documents, chats, tic
 
 The agent uses deterministic routing across five workflows. It needs no LLM or API key. It resolves names from the graph, asks for clarification when ambiguous, runs bounded graph operations, and separates facts, computed inferences, and recommendations. Removing FalkorDB removes the facts and relationships needed to answer.
 
-## Start with Docker only
+## Start here: judge's guide
+
+| Review | Link |
+|---|---|
+| See the product | [60-second walkthrough](artifacts/demo/tron-walkthrough.mp4) · [Download video](https://raw.githubusercontent.com/Shashwat-911/tr0n-shashwat/main/artifacts/demo/tron-walkthrough.mp4) |
+| Run it locally | [Docker setup](#run-locally-with-docker) — no Go installation or API key needed |
+| Understand the graph | [Data model](#graph-data-model-and-queries) · [Cypher query catalog](docs/CYPHER_QUERIES.md) |
+| Inspect the evidence | [Verification report](docs/VERIFICATION.md) · [GitHub Actions](https://github.com/Shashwat-911/tr0n-shashwat/actions) |
+| Understand contributions | [13-step implementation guide](docs/COMPLETION_STEPS.md) · [AI disclosure](#ai-assistance-and-contribution-history) |
+
+The video is a captioned sequence of screenshots captured from the running app. Complete local setup is provided below; there is no hosted application deployment.
+
+![TRON answering a decision question with graph operations and source records](artifacts/demo/03-decision.png)
+
+## The problem
+
+During an incident or handoff, a team needs more than a document search. Who owns the service now? Who resolved a similar failure? Why was a technology chosen? The answers are spread across ownership records, engineering activity, tickets, chats, and decisions.
+
+TRON connects those records so a person can trace an answer back to the relationships and sources that support it, then download a handoff draft for review.
+
+## Why FalkorDB is essential
+
+FalkorDB is the primary store for organizational entities, source content, and relationships. The Go application executes parameterized Cypher to produce the answers:
+
+- **Ownership:** follow `OWNS` edges valid at the requested time, retaining previous ownership windows.
+- **Expertise:** traverse people → PRs → repositories ← services, incident resolvers, and document authorship; compute a ranking from that evidence.
+- **Decisions:** follow `SUPPORTED_BY` and `DISCUSSED_IN` to the recorded rationale, ADR, chat, ticket, and meeting.
+- **Handoffs:** combine ownership, expertise, and relevant incident history into an unsent draft with sources.
+
+The UI graph displays relationships returned by these queries. Removing FalkorDB removes the records and traversals needed to answer; there is no fallback answer database.
+
+## Try the five workflows
+
+After setup, open the app and click the numbered prompts:
+
+| Prompt | What to look for |
+|---|---|
+| **01 · Ownership** — Who owns the Payments service? | Ada Mercer in the initial seed, the `OWNS` evidence path, and source provenance. Use an earlier date to inspect ownership history. |
+| **02 · Expertise** — Who knows Payments best? | Ranked people, the `INFERENCE` label, `expertise/v1`, and the paths supporting each score. Ownership receives priority. |
+| **03 · Decisions** — Why did we choose Redis over Kafka? | The recorded idempotency rationale and supporting ADR, chat, ticket, and meeting records. Click a source to inspect its content. |
+| **04 · History** — Has payments-api timed out before? | Prior timeout incidents, dates, and recorded resolvers. |
+| **05 · Handoff** — Prepare a handoff for payments-api timeout investigation | A suggested lead, supporting evidence, and **Download handoff draft**. The draft does not assign or message anyone. |
+
+The same workflows support other entities in the synthetic graph. Choose **Context** for follow-ups such as “Who knows it best?”. Ambiguous entity matches ask for clarification; unsupported questions abstain.
+
+### How to read an answer
+
+| Label | Meaning |
+|---|---|
+| **FACT** | A recorded graph fact or source statement, with its supporting path. This is not independent verification of the source. |
+| **INFERENCE** | A computed result, such as the versioned expertise ranking. |
+| **RECOMMENDATION** | A suggested next step, such as an investigation lead, requiring human review. |
+
+Expand **Evidence paths**, inspect **Source records**, and click nodes in **Connected context**. Source observation dates are visible; TRON does not apply a universal staleness threshold. Conflicting ownership blocks selection of a handoff lead.
+
+## Run locally with Docker
 
 Install Docker Desktop (Windows/macOS) or Docker Engine with Compose (Linux), then:
 
@@ -45,25 +100,13 @@ go run ./cmd/tron serve
 
 The local server and Docker host ports bind to loopback. This submission is a single-company local demo; it does not include public hosting, authentication, tenant isolation, or private-source integrations.
 
-## The five workflows
-
-| Ask | What FalkorDB does |
-|---|---|
-| Who owns the Payments service? | Resolves a service and reads valid `OWNS` edges with provenance |
-| Who knows Payments best? | Follows PR → repository → service, document authorship, incident resolvers, and ownership; computes `expertise/v1` |
-| Why did we choose Redis over Kafka? | Reads recorded rationale and follows supporting ADR, chat, ticket, and meeting records |
-| Has payments-api timed out before? | Follows `Incident → AFFECTS → Service` and `RESOLVED_BY`; optional literal timeout filtering |
-| Prepare a handoff for payments-api timeout investigation | Combines ownership, ranked expertise, and history into a downloadable, unsent Markdown draft |
-
-Choose a context for follow-ups such as “Who knows it best?”. The optional date queries historical ownership. For expertise it filters **ownership only**; scores use the recorded activity and current recency, not a complete historical snapshot. Ownership conflicts block selection of a handoff lead. Source observation timestamps are displayed for review; there is no universal staleness threshold.
-
 ## Keep knowledge current
 
-The repo includes two allowed synthetic source records. Import them with explicit identity mappings:
+The repository includes two fictional source records with explicit identity mappings. With the Docker app running, import them twice:
 
 ```sh
-go run ./cmd/tron import examples/sources.json
-go run ./cmd/tron import examples/sources.json
+docker compose run --rm -v "./examples:/examples:ro" app import /examples/sources.json
+docker compose run --rm -v "./examples:/examples:ro" app import /examples/sources.json
 ```
 
 The second run reports zero changes. Modify the source body and advance `observed_at` to refresh it; the importer updates the document and replaces its own authorship/topic links in one graph mutation. It rejects missing identities, identity/source collisions, and stale observations. Kinds include `adr`, `runbook`, `spec`, `note`, `chat`, and `ticket`, represented as `Document` artifacts. This is a structured file import, not automatic extraction from arbitrary text. Each record is atomic; if a batch fails, prior completed records remain and a corrected batch can safely be retried.
@@ -71,10 +114,10 @@ The second run reports zero changes. Modify the source body and advance `observe
 Record a sourced ownership change while retaining the previous validity window:
 
 ```sh
-go run ./cmd/tron owner-set service:payments-api person:2 synthetic/registry/ownership-change
+docker compose run --rm app owner-set service:payments-api person:2 synthetic/registry/ownership-change
 ```
 
-Refresh the ownership answer, then use an earlier date to see the previous owner. Repeating the same owner is a no-op. Use `seed` to restore the original fictional demo after experimenting.
+Refresh the ownership answer, then use an earlier date to see the previous owner. Repeating the same owner is a no-op. Run `docker compose run --rm app seed` to restore the initial fictional demo after experimenting. Go users can run the equivalent `go run ./cmd/tron import examples/sources.json` and `go run ./cmd/tron owner-set ...` commands.
 
 ## Graph data model and queries
 
@@ -94,6 +137,28 @@ flowchart LR
 ```
 
 See [the full graph model](docs/GRAPH_MODEL.md), [query catalog](docs/CYPHER_QUERIES.md), and [executable Cypher](internal/graph/graph.go). Expertise weights and recency decay live in [expertise.go](internal/knowledge/expertise.go). Ownership receives priority; scores are evidence-based ranking signals, not probabilities or validated measures of employee performance.
+
+## How the application works
+
+```text
+Browser or HTTP client
+        |
+Go API -> deterministic question router -> graph operations -> FalkorDB
+        |                                      |
+        +---- layered answer + source evidence-+
+
+Explicit CLI import / owner-set commands ------> FalkorDB
+```
+
+| Component | Responsibility | Code |
+|---|---|---|
+| Graph | Parameterized Cypher, identity resolution, provenance, historical ownership, bounded evidence context | [internal/graph](internal/graph) |
+| Knowledge | Claim contracts and deterministic expertise scoring | [internal/knowledge](internal/knowledge) |
+| Agent | Five question intents, clarification, evidence collection, and handoff composition; a separate provider-neutral tool loop | [internal/agent](internal/agent) |
+| Interface | HTTP endpoints and embedded HTML/CSS/JavaScript workspace | [internal/api](internal/api) · [internal/ui](internal/ui) |
+| Data and commands | Fictional company seed, local server, imports, ownership updates, and demo checks | [internal/seed](internal/seed) · [cmd/tron](cmd/tron) |
+
+The stack is Go + FalkorDB + an embedded browser UI. No LLM provider is connected in this build, and no API key is required.
 
 ## API
 
@@ -118,16 +183,38 @@ go run ./cmd/tron demo     # seven graph checks, nonzero exit on failure
 
 Integration tests use dedicated `tron_*_test` graphs and remove them afterwards. New coverage includes question routing and abstention, all five question workflows, source import idempotency/update behavior, ownership changes and historical boundaries, duplicate identity rejection, request validation, and bounded agent calls.
 
-## Submission
+## Scope and limitations
 
-- **Track:** Track 03 — Company Brain.
-- **Source and local setup:** this repository and the commands above.
-- **Graph model and queries:** linked above.
-- **Demo:** [60-second captioned walkthrough](artifacts/demo/tron-walkthrough.mp4), assembled from screenshots of the running app; [recording script](docs/DEMO_SCRIPT.md) for a narrated live demonstration. [Direct video download](https://raw.githubusercontent.com/Shashwat-911/tr0n-shashwat/main/artifacts/demo/tron-walkthrough.mp4). Review the walkthrough before submitting; a narrated live demo is recommended.
-- **AI disclosure:** Codex assisted with implementation, debugging, tests, UI, and documentation. Participants must review and understand the graph model, queries, scoring, and technical decisions, and disclose their own contribution accurately.
+**Implemented:** the five graph-backed workflows, source drill-down, historical ownership, conflict detection, explicit structured source refresh, ownership updates, and downloadable handoff drafts.
 
-The larger production roadmap in `docs/` includes optional future work. This local competition build does not claim general-purpose natural-language reasoning, live Slack/GitHub synchronization, autonomous external actions, or production security.
+**Boundaries of this submission:**
 
-### Contribution history
+- Question handling is deterministic across five intents; it is not general-purpose LLM reasoning.
+- All demonstration data is synthetic. Chats and tickets are `Document` records; no live Slack, GitHub, or other private-source connector is enabled.
+- Import requires structured records with explicit identities. It does not automatically extract facts from arbitrary prose.
+- Historical expertise filters ownership only; other activity scores use recorded activity and current recency. It is not a complete historical expertise snapshot.
+- The app is designed for one local company and a single writer. Public authentication, tenant isolation, and production access controls are not implemented.
+- Source refresh retains the latest document body; ownership updates preserve relationship history. These are different retention guarantees.
+- Broad benchmark coverage and comparison baselines remain incomplete. See [EVALUATION.md](docs/EVALUATION.md) for known identity ambiguity and evaluation status.
 
-The original team history is preserved. The completion work is organized into 13 reviewable commits; see [the change guide](docs/COMPLETION_STEPS.md). These commits organize the completed work by feature, not a claim of separate development sessions.
+## Submission checklist
+
+| Requirement | Where to review |
+|---|---|
+| Track | **Track 03 — Company Brain** |
+| Public source | [Shashwat-911/tr0n-shashwat](https://github.com/Shashwat-911/tr0n-shashwat) |
+| Setup or deployment | [Complete local Docker setup](#run-locally-with-docker) |
+| Graph model | [GRAPH_MODEL.md](docs/GRAPH_MODEL.md) |
+| Cypher and graph logic | [CYPHER_QUERIES.md](docs/CYPHER_QUERIES.md) · [Executable operations](internal/graph/graph.go) |
+| Working-product demonstration | [Captioned walkthrough](artifacts/demo/tron-walkthrough.mp4) · [Direct download](https://raw.githubusercontent.com/Shashwat-911/tr0n-shashwat/main/artifacts/demo/tron-walkthrough.mp4) |
+| Verification | [Report](docs/VERIFICATION.md) · [CI](https://github.com/Shashwat-911/tr0n-shashwat/actions) · `docker compose run --rm app demo` |
+| Data provenance | Fictional seeded company and synthetic example imports |
+| AI disclosure | Below |
+
+For a longer interactive presentation, use the [narrated demo script](docs/DEMO_SCRIPT.md). The broader production roadmap in `docs/` describes future work; it is not a claim that those features are implemented.
+
+## AI assistance and contribution history
+
+Codex assisted with implementation, debugging, tests, UI, and documentation. Participants must review and understand the graph model, queries, scoring, and technical decisions, and disclose their own contribution accurately.
+
+The original team history and subsequent fixes are preserved. The completion work was organized into **13 reviewable feature commits**, documented in [COMPLETION_STEPS.md](docs/COMPLETION_STEPS.md). This README refinement follows those commits. The grouping explains the changes; it does not imply separate development sessions.
