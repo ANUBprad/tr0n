@@ -136,6 +136,40 @@ func TestLoadEdgesNormalizesOffsetToUTC(t *testing.T) {
 	}
 }
 
+// Window endpoints are compared as parsed instants, not raw strings, and
+// normalized to canonical UTC on write. Here valid_to sorts *earlier*
+// than valid_from as a string but is a later moment, so the window is a
+// valid half-open interval and must be accepted and stored normalized.
+func TestLoadEdgesComparesInstantsNotStrings(t *testing.T) {
+	c := newTestClient(t)
+	mustLoadNodes(t, c, "Person", []map[string]interface{}{nodeRow("person:ada")})
+	mustLoadNodes(t, c, "Team", []map[string]interface{}{nodeRow("team:core")})
+
+	props := edgeProps()
+	props["valid_from"] = "2026-01-01T05:30:00+05:30" // == 2026-01-01T00:00:00Z
+	props["valid_to"] = "2026-01-01T02:00:00-05:00"   // == 2026-01-01T07:00:00Z
+	if err := c.LoadEdges("WORKS_IN", []EdgeRow{
+		{From: "person:ada", To: "team:core", Props: props},
+	}); err != nil {
+		t.Fatalf("mixed-offset window should be accepted: %v", err)
+	}
+	res, err := c.g.ROQuery(
+		`MATCH ()-[r:WORKS_IN]->() RETURN r.valid_from AS vf, r.valid_to AS vt`, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Next() {
+		t.Fatal("WORKS_IN edge missing after load")
+	}
+	rec := res.Record()
+	if got := field(rec, "vf"); got != "2026-01-01T00:00:00Z" {
+		t.Errorf("valid_from = %q, want normalized 2026-01-01T00:00:00Z", got)
+	}
+	if got := field(rec, "vt"); got != "2026-01-01T07:00:00Z" {
+		t.Errorf("valid_to = %q, want normalized 2026-01-01T07:00:00Z", got)
+	}
+}
+
 // Every node-batch violation is rejected and writes nothing.
 func TestLoadNodesRejectsInvalidBatch(t *testing.T) {
 	c := newTestClient(t)
@@ -195,6 +229,16 @@ func TestLoadEdgesRejectsInvalidBatch(t *testing.T) {
 	reversed := edgeProps()
 	reversed["valid_from"] = "2026-06-01T00:00:00Z"
 	reversed["valid_to"] = "2026-01-01T00:00:00Z"
+	// Equal endpoints are an empty half-open window: never matches any
+	// as-of instant, so it is rejected like a reversed one.
+	equal := edgeProps()
+	equal["valid_from"] = "2026-01-01T00:00:00Z"
+	equal["valid_to"] = "2026-01-01T00:00:00Z"
+	// ...including when the two spell the same instant with different
+	// offsets: the check compares parsed instants, not raw strings.
+	equalOffset := edgeProps()
+	equalOffset["valid_from"] = "2026-01-01T05:30:00+05:30" // == 2026-01-01T00:00:00Z
+	equalOffset["valid_to"] = "2026-01-01T00:00:00Z"
 	// A malformed valid_from with no valid_to must still fail: parsing is
 	// per-endpoint, not conditional on valid_to being present.
 	badFromAlone := edgeProps()
@@ -211,7 +255,9 @@ func TestLoadEdgesRejectsInvalidBatch(t *testing.T) {
 	}{
 		{"state edge without valid_from", "WORKS_IN", stateNoFrom, "requires"},
 		{"event edge with valid_to", "AUTHORED", eventWithTo, "must not carry"},
-		{"valid_to before valid_from", "WORKS_IN", reversed, "before valid_from"},
+		{"valid_to before valid_from", "WORKS_IN", reversed, "not after valid_from"},
+		{"valid_to equal to valid_from", "WORKS_IN", equal, "not after valid_from"},
+		{"equal instants with different offsets", "WORKS_IN", equalOffset, "not after valid_from"},
 		{"malformed valid_from without valid_to", "WORKS_IN", badFromAlone, "valid_from"},
 		{"malformed valid_to", "WORKS_IN", badTo, "valid_to"},
 	}

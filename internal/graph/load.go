@@ -94,7 +94,8 @@ func validateNode(label string, row map[string]interface{}, seen map[string]bool
 // validateEdge enforces the edge half of the fact-write contract:
 // endpoints present, minimum provenance, state relations carry a
 // parseable valid_from, event/evidence relations carry no valid_to, and
-// valid_to is never earlier than valid_from.
+// valid_to is strictly after valid_from — a half-open window
+// [valid_from, valid_to) is empty when the two are equal or reversed.
 func validateEdge(rel string, r EdgeRow) error {
 	if r.From == "" || r.To == "" {
 		return fmt.Errorf("%s edge: missing endpoint (from=%q to=%q)", rel, r.From, r.To)
@@ -137,8 +138,13 @@ func validateEdge(rel string, r EdgeRow) error {
 		vt = t
 		r.Props["valid_to"] = t.UTC().Format(time.RFC3339)
 	}
-	if validFrom != "" && validTo != "" && vt.Before(vf) {
-		return fmt.Errorf("%s edge %s->%s: valid_to %s is before valid_from %s", rel, r.From, r.To, validTo, validFrom)
+	// Compare the parsed instants, not the raw strings: two equivalent
+	// instants spelled with different RFC3339 offsets (05:30+05:30 and
+	// 00:00Z) are the same moment and so form an empty window. Half-open
+	// [valid_from, valid_to) must be non-empty: equal endpoints never
+	// match an as-of instant.
+	if validFrom != "" && validTo != "" && !vt.After(vf) {
+		return fmt.Errorf("%s edge %s->%s: valid_to %s is not after valid_from %s", rel, r.From, r.To, validTo, validFrom)
 	}
 	return nil
 }
