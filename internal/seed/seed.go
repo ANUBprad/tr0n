@@ -64,6 +64,7 @@ var edgeSrc = map[string]string{
 func (d *Data) node(label, key string, props map[string]interface{}) {
 	p := provenance(nodeSrc[label])
 	p["key"] = key
+	p["src_ref"] = srcRef + "/" + key
 	for k, v := range props {
 		p[k] = v
 	}
@@ -262,16 +263,38 @@ func Generate() *Data {
 	for i := 0; i < 60; i++ {
 		n := i + 1
 		kind := kinds[i%4]
+		body := "Synthetic source record for Acme's organizational graph."
 		title := fmt.Sprintf("%s-%04d: %s",
 			strings.ToUpper(kind), n, subjects[i%len(subjects)])
 		switch n {
 		case 1:
 			kind, title = "adr", "Graph database selection"
+			body = "Decision: use FalkorDB for the company graph. Required traversals connect people, source artifacts and services with per-edge provenance. The team chose the Redis-compatible operational model and parameterized Cypher for the prototype; these are scenario assumptions, not a vendor benchmark."
 		case 2:
 			kind, title = "adr", "FalkorDB operations model"
+			body = "Run the graph on a local container with persistent storage. Use bounded read operations and retain source references on every relationship. Restore from the synthetic seed for a clean demo."
+		case 3:
+			kind, title = "adr", "Redis versus Kafka for payment idempotency"
+			body = "The payments team needs a synchronous duplicate-request guard with a 24-hour TTL. Redis SET NX with expiry fits the lookup pattern. Kafka is retained for asynchronous event streaming; it was not selected as the synchronous idempotency store. The payment ledger remains the durable system of record."
+		case 4:
+			kind, title = "chat", "#payments: idempotency design review"
+			body = "Fictional chat export, 2026-09-22. Grace: retries must return the original result. Ada: use Redis for the TTL guard, and persist the result in the ledger. Alan: Kafka remains our event log, not the request lookup. Team agreed to record the trade-off in ADR-3."
+		case 5:
+			kind, title = "ticket", "PAY-42: duplicate requests during gateway retries"
+			body = "Synthetic ticket. Acceptance: repeated requests with the same idempotency key return the same ledger result; keys expire after 24 hours; failures do not create a second charge. Follow the idempotency ADR and monitor timeout rates."
+		}
+		published, sourceType := rfc((n*9)%620), "adr_repo"
+		if n >= 3 && n <= 5 {
+			published = "2026-09-22T15:00:00Z"
+		}
+		if kind == "chat" {
+			sourceType = "chat_export"
+		}
+		if kind == "ticket" {
+			sourceType = "ticket_export"
 		}
 		d.node("Document", fmt.Sprintf("doc:%d", n), map[string]interface{}{
-			"title": title, "kind": kind, "published_at": rfc((n * 9) % 620),
+			"title": title, "kind": kind, "body": body, "published_at": published, "src_type": sourceType,
 		})
 	}
 	// Decisions (30).
@@ -284,16 +307,21 @@ func Generate() *Data {
 		title := fmt.Sprintf("Adopt %s for %s",
 			techs[(n*7)%len(techs)], services[(n*3)%len(services)])
 		status, decided := statuses[n%len(statuses)], rfc((n*17)%600)
+		rationale := ""
 		switch n {
 		case 1:
 			title, status, decided = "Adopt FalkorDB for the org knowledge graph",
 				"accepted", "2026-02-14T10:00:00Z"
+			rationale = "The team selected a Redis-compatible operational model and bounded Cypher traversals to connect organizational facts with provenance. See the selection ADR and operations model for the recorded assumptions."
 		case 2:
 			title, status, decided = "Adopt Neo4j as the graph database",
 				"superseded", "2025-08-03T10:00:00Z"
+		case 3:
+			title, status, decided = "Choose Redis over Kafka for payment idempotency", "accepted", "2026-09-22T15:00:00Z"
+			rationale = "Redis provides the synchronous key lookup and 24-hour expiry required for duplicate-request protection. Kafka remains the asynchronous event stream; the payment ledger stores durable outcomes."
 		}
 		d.node("Decision", fmt.Sprintf("decision:%d", n), map[string]interface{}{
-			"title": title, "status": status, "decided_at": decided,
+			"title": title, "status": status, "decided_at": decided, "rationale": rationale,
 		})
 	}
 	// Meetings (20).
@@ -303,6 +331,9 @@ func Generate() *Data {
 		held := rfc((m * 11) % 600)
 		if m == 1 {
 			title, held = "Graph database selection review", "2026-02-10T15:00:00Z"
+		}
+		if m == 3 {
+			title, held = "Payments idempotency design review", "2026-09-22T14:00:00Z"
 		}
 		d.node("Meeting", fmt.Sprintf("meeting:%d", m), map[string]interface{}{
 			"title": title, "held_at": held,
@@ -454,8 +485,14 @@ func Generate() *Data {
 	// SUPPORTED_BY: decision:1 → docs 1–2; the rest by formula.
 	d.edge("SUPPORTED_BY", "decision:1", "doc:1", "")
 	d.edge("SUPPORTED_BY", "decision:1", "doc:2", "")
+	for _, key := range []string{"doc:3", "doc:4", "doc:5"} {
+		d.edge("SUPPORTED_BY", "decision:3", key, "")
+	}
 	for i := 1; i < 30; i++ {
 		n := i + 1
+		if n == 3 {
+			continue
+		}
 		d.edge("SUPPORTED_BY", fmt.Sprintf("decision:%d", n),
 			fmt.Sprintf("doc:%d", (n*7)%60+1), "")
 	}
@@ -492,6 +529,10 @@ func Generate() *Data {
 	d.edge("ABOUT", "doc:1", "tech:16", "")
 	d.edge("ABOUT", "doc:2", "service:payments-api", "")
 	for n := 3; n <= 40; n++ {
+		if n <= 5 {
+			d.edge("ABOUT", fmt.Sprintf("doc:%d", n), "service:payments-api", "")
+			continue
+		}
 		d.edge("ABOUT", fmt.Sprintf("doc:%d", n),
 			"service:"+services[(n-1)%20], "")
 	}
