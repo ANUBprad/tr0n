@@ -23,9 +23,10 @@ import (
 // operation via db.SelectGraph, which shares the same pool, then drop
 // the lock.
 type Client struct {
-	mu sync.Mutex
-	db *falkordb.FalkorDB
-	g  *falkordb.Graph
+	name string
+	mu   sync.Mutex
+	db   *falkordb.FalkorDB
+	g    *falkordb.Graph
 }
 
 // New connects to FalkorDB at addr and selects the named graph.
@@ -36,7 +37,7 @@ func New(addr, graphName string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect falkordb at %s: %w", addr, err)
 	}
-	return &Client{db: db, g: db.SelectGraph(graphName)}, nil
+	return &Client{name: graphName, db: db, g: db.SelectGraph(graphName)}, nil
 }
 
 func (c *Client) Close() error {
@@ -704,6 +705,10 @@ func (c *Client) ResolveEntity(name, label string) (Resolution, error) {
 		})
 	}
 
+	keyOnly := strings.HasPrefix(name, "key=")
+	if keyOnly {
+		name = strings.TrimPrefix(name, "key=")
+	}
 	lower := strings.ToLower(name)
 	tiers := []struct {
 		on   string
@@ -716,7 +721,19 @@ func (c *Client) ResolveEntity(name, label string) (Resolution, error) {
 			return strings.HasPrefix(strings.ToLower(c.Name), lower)
 		}},
 	}
+	if keyOnly {
+		tiers = tiers[:1]
+	}
 	for _, tier := range tiers {
+		if tier.on == "name" {
+			alias, err := c.resolveAlias(name, label)
+			if err != nil {
+				return empty, err
+			}
+			if alias.Key != "" || len(alias.Candidates) > 0 {
+				return alias, nil
+			}
+		}
 		var hits []Candidate
 		for _, cand := range all {
 			if tier.test(cand) {

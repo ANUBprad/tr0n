@@ -282,6 +282,9 @@ func (c *Client) LoadNodes(label string, rows []map[string]interface{}) error {
 		return fmt.Errorf("load %s nodes: key(s) already present: %s",
 			label, strings.Join(existing, ", "))
 	}
+	if err := c.rejectAliases(keys); err != nil {
+		return err
+	}
 	// falkordb-go's param encoder type-switches exactly: convert to the
 	// shapes it knows ([]interface{} of map/string) before sending.
 	payload := make([]interface{}, len(rows))

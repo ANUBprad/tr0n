@@ -115,6 +115,7 @@ func evidenceFactID(f EvidenceFact) string {
 //	over_budget  the entity resolved and had in-scope facts, but the byte
 //	             bound excluded every one (Facts empty, Truncated true)
 type EvidenceContext struct {
+	Relations  []string       `json:"relations,omitempty"`
 	Entity     *NodeRef       `json:"entity,omitempty"`
 	Status     string         `json:"status"`
 	Candidates []Candidate    `json:"candidates,omitempty"`
@@ -144,7 +145,7 @@ type EvidenceContext struct {
 // that; upgrade path = one lock around the whole assembly if snapshot
 // isolation is ever needed.
 func (c *Client) AssembleEvidence(req EvidenceRequest) (EvidenceContext, error) {
-	ctx := EvidenceContext{Status: EvidenceStatusEmpty, Facts: []EvidenceFact{}}
+	ctx := EvidenceContext{Status: EvidenceStatusEmpty, Facts: []EvidenceFact{}, Relations: append([]string(nil), req.Relations...)}
 	limit := req.Limit
 	if limit <= 0 {
 		limit = DefaultEvidenceLimit

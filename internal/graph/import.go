@@ -46,6 +46,14 @@ func (c *Client) ImportRecord(record SourceRecord) (bool, error) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.importRecord(record, "")
+}
+
+// importRecord requires c.mu; syncSource reserves ownership of managed records.
+func (c *Client) importRecord(record SourceRecord, syncSource string) (bool, error) {
+	if err := c.rejectAliases([]string{record.Key}); err != nil {
+		return false, err
+	}
 	observed, _ := time.Parse(time.RFC3339, record.ObservedAt)
 	record.ObservedAt = observed.UTC().Format(time.RFC3339Nano)
 	encoded, _ := json.Marshal(record)
@@ -63,7 +71,7 @@ func (c *Client) ImportRecord(record SourceRecord) (bool, error) {
 	if count != 1 {
 		return false, fmt.Errorf("author and about target must resolve uniquely to Person and Service/Project/Technology")
 	}
-	res, err = c.g.ROQuery(`MATCH (n {key:$key}) RETURN labels(n)[0] AS label,n.src_ref AS source,n.observed_at AS observed,n.content_hash AS hash`, params, nil)
+	res, err = c.g.ROQuery(`MATCH (n {key:$key}) RETURN labels(n)[0] AS label,n.src_ref AS source,n.observed_at AS observed,n.content_hash AS hash,n.sync_source AS sync_source`, params, nil)
 	if err != nil {
 		return false, err
 	}
@@ -72,6 +80,9 @@ func (c *Client) ImportRecord(record SourceRecord) (bool, error) {
 	for res.Next() {
 		count++
 		r := res.Record()
+		if field(r, "sync_source") != syncSource {
+			return false, fmt.Errorf("record is managed by a different synchronization source")
+		}
 		if field(r, "label") != "Document" || field(r, "source") != record.SourceRef {
 			return false, fmt.Errorf("key already belongs to a different label or source")
 		}
@@ -97,7 +108,7 @@ func (c *Client) ImportRecord(record SourceRecord) (bool, error) {
 	if record.Kind == "ticket" {
 		sourceType = "ticket_export"
 	}
-	params["props"] = map[string]interface{}{"key": record.Key, "title": record.Title, "body": record.Body, "kind": record.Kind, "src_type": sourceType, "src_ref": record.SourceRef, "observed_at": record.ObservedAt, "extraction": "explicit_mapping", "content_hash": hash}
+	params["props"] = map[string]interface{}{"key": record.Key, "title": record.Title, "body": record.Body, "kind": record.Kind, "src_type": sourceType, "src_ref": record.SourceRef, "observed_at": record.ObservedAt, "extraction": "explicit_mapping", "content_hash": hash, "sync_source": syncSource}
 	params["edge"] = map[string]interface{}{"src_type": sourceType, "src_ref": record.SourceRef, "observed_at": record.ObservedAt, "extraction": "explicit_mapping", "ingest_key": record.Key}
 	_, err = c.g.Query(`MATCH (a:Person {key:$author}),(t {key:$about})
 	 MERGE (d:Document {key:$key}) SET d=$props
