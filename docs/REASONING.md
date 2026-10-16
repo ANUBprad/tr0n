@@ -12,8 +12,9 @@ operation boundary + agent seam) and [`architecture-minimal.md`](architecture-mi
 > **Current reality**: deterministic graph operations + deterministic answer
 > composers exist (`internal/graph`, `internal/ui`). The agent loop exists as a
 > provider-agnostic seam with **no LLM wired** (`internal/agent/agent.go`).
-> Context assembly, option comparison, and planning are **PROPOSED**;
-> contradiction detection ships as `FindConflicts` (E6 v1, 2026-10-16).
+> Option comparison and planning are **PROPOSED**; contradiction detection ships
+> as `FindConflicts` (E6 v1, 2026-10-16) and bounded context assembly as
+> `AssembleEvidence` (M3, 2026-10-16).
 
 ---
 
@@ -28,7 +29,7 @@ Plan → Evaluate alternatives → Authorize → Execute → Verify → Learn
 |---|---|---|---|
 | **Observe** | system | PARTIAL | `FindOwner/FindExperts/...` are the observable units today |
 | **Establish context** | system | PROPOSED | who asks, what they may see, what they mean |
-| **Retrieve evidence** | deterministic (graph) | IMPLEMENTED | bounded op traversal with provenance |
+| **Retrieve evidence** | deterministic (graph) | IMPLEMENTED | bounded op traversal with provenance; `AssembleEvidence` assembles one entity's bounded context |
 | **Reason** | LLM *phrases*; rules *decide* | PARTIAL | deterministic composers today; LLM synthesis later |
 | **Validate** | deterministic | IMPLEMENTED (subset) | `knowledge.Answer.Validate` |
 | **Plan** | rules + LLM phrasing | PROPOSED | goal/budget/deadline/dependency/risk |
@@ -44,7 +45,7 @@ for every question. A lookup question stops after **Validate**.
 ## 2. Retrieval: graph-first, hybrid when needed
 
 **Graph-first.** The primary retrieval is deliberate, bounded traversal of the
-six operations (`AGENT_SPEC.md`). Every returned fact carries provenance; the
+operations (`AGENT_SPEC.md`). Every returned fact carries provenance; the
 traversal *is* the evidence. This is the product thesis: remove the graph and
 the reasoning degrades.
 
@@ -61,11 +62,24 @@ performs the reasoning over those candidates. The index never answers; it
 routes. (See `INGESTION.md` §9.4 for the index's buildable-from-scratch
 property.)
 
-**Context assembly (PROPOSED).** Given (query, user scope), select the
-*minimum* evidence set that can justify an answer:
+**Context assembly (IMPLEMENTED 2026-10-16).** Given (query, user scope), select
+the *minimum* evidence set that can justify an answer:
 - resolve entities → pick operations → run them;
 - drop facts the user cannot see (permission-aware, `SECURITY.md`);
 - rank by relevance/recency; cap size (deliberate retrieval, no graph dumps).
+
+`internal/graph` `AssembleEvidence` (`EvidenceContext`) implements the retrieval
+half for one entity: it resolves the entity with the canonical tiers (never
+guessing between candidates), follows that entity's edges deliberately, scopes
+to optional relationship types, filters **state** relations to an optional
+`as_of` under the canonical half-open rule (event relations carry no window and
+are not filtered, as in `FindExperts`), orders facts by a store-independent sort,
+caps the result by documented count/size limits, and reports truncation
+explicitly. Unknown, ambiguous, empty, and malformed-temporal inputs each have
+an explicit outcome; the call is read-only. Permission-aware dropping and
+relevance/recency ranking remain **PROPOSED** (no permission model or relevance
+score exists yet); `as_of` is the only ordering/selection lever today. The agent
+loop reaches it through the `assemble_context` tool.
 
 **Evidence selection.** Keep a fact if it **bears on a claim**. Every kept
 fact retains its `src_ref` so the claim can cite openable evidence.

@@ -48,6 +48,10 @@ cost/latency — the parts that don't exist yet.
 | E11 | **Proactive alert quality** | events with/without true alerts | precision/recall of alerts | PROPOSED (no proactive feature yet) |
 | E12 | **Latency & cost** | workload replay | p50/p95 per op; tokens/$ per answer | PARTIAL (per-op ms captured in UI) |
 
+**Note (2026-10-16)**: M3 retrieval / context assembly is implemented and tested
+(§2.4). It is the evidence-selection precondition for E3/E4 and does not by
+itself change their status (no Q/A grounding or answer rendering yet).
+
 ### 2.1 E6 scope and v1 checklist (decided 2026-10-15; implemented 2026-10-16)
 
 E6 v1 covers **state relations only** (`WORKS_IN, OWNS, WORKED_ON, HAS_REPO,
@@ -147,6 +151,38 @@ correctness needs a second source). What is runnable and locked now
 Staleness is **not** a suite: freshness is `observed_at`-based and already
 returned on every `Provenance`; no stale threshold or label is defined
 (decision 2026-10-16, `SCHEMA.md` §5).
+
+### 2.4 M3 retrieval / context assembly (implemented 2026-10-16)
+
+`graph.AssembleEvidence` (the retrieval half of `REASONING.md` §2) is runnable
+and locked on real FalkorDB. It is the evidence-*selection* precondition for
+E3/E4 and does **not** by itself make them pass (no Q/A grounding, no answer
+rendering). What is proven now (`internal/graph` `evidence_test.go`, skipped
+under `-short`):
+
+- **Relevance, no leak**: facts anchored on the resolved entity are returned
+  with provenance and validity windows; the entity's own neighbouring facts on
+  *other* entities do not leak in; the call mutates nothing (node/edge counts
+  unchanged, no `INFERENCE`/`rule_id` introduced);
+- **Canonical half-open `as_of`**: `valid_from <= as_of < valid_to` — inclusive
+  at `valid_from`, exclusive at `valid_to` (the handoff instant belongs to the
+  later owner only); omitted `as_of` = full history; event relations (no window)
+  are never window-filtered;
+- **Explicit outcomes, no guessing**: ambiguous resolution returns the candidate
+  list with no facts; unknown → `not_found`; resolved-but-no-in-scope-fact →
+  `empty`; malformed `as_of` → error (never a silent no-filter); blank entity →
+  error;
+- **Bounds + truncation**: count and serialized-size caps are enforced and the
+  chosen reason is reported; defaults do not truncate normal results;
+- **Store-order independence**: the same facts seeded in reverse insertion order
+  produce byte-identical context (deterministic sort).
+
+End-to-end integration: `internal/agent`
+`TestAssembleContextToolSuppliesEvidence` drives the loop with the
+`assemble_context` tool, asserts bounded/provenanced facts reach the transcript,
+and builds a `knowledge.Answer` claim from a returned fact path whose
+`Validate()` passes — the string-path bridge to the answer layer (structured
+provenance in an answer is an open question; see `OPEN_QUESTIONS.md`).
 
 ## 3. Baselines and comparison
 

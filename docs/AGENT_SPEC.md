@@ -27,7 +27,7 @@ PROBABILISTIC (future agent layer only)
 v1 core ships **without any LLM** — the operations are a usable JSON API on
 their own.
 
-## The operations (initial: 5 + 1 resolver)
+## The operations (initial: 5 + 1 resolver; two decided expansions: FindConflicts, AssembleContext)
 
 All return `{layer, ...}` structures: fact paths carry provenance from
 `knowledge-model.md`; computed results carry `rule_id` + basis. All are
@@ -112,6 +112,33 @@ IMPLEMENTED 2026-10-16 (`internal/graph` `TestFindOwnerAsOf`, `internal/api`
   it is the "why do you believe this?" drill-down
 - **Answers**: "What supports this answer?"
 
+### AssembleContext (IMPLEMENTED — M3 context assembly, 2026-10-16)
+
+Boundary note: a **decided** expansion of the locked 5 + 1 boundary (reason in
+`planning/decision-log.md`), now **implemented**: `graph.AssembleEvidence`
+(`internal/graph/evidence.go`) and the `assemble_context` agent tool. It is the
+retrieval half of `REASONING.md` §2 context assembly — the smallest seam that
+supplies the reasoning loop with bounded, provenance-bearing facts.
+
+- **Input**: one `entity` (free text, resolved by the canonical tiers) +
+  optional `label`, `as_of`, `relations`, `limit`, `max_bytes`
+- **Output**: an `EvidenceContext` — the resolved `entity`, a `status`
+  (`ok` | `not_found` | `ambiguous` | `empty`), the sorted `facts` (each an edge
+  with both endpoint identities, relationship identity, direction, and complete
+  provenance incl. `valid_from`/`valid_to`), and explicit `truncated` /
+  `truncated_reason`
+- **Traversal**: resolve → 1-hop expansion of that entity's edges, optionally
+  narrowed to named relations. State relations are filtered to `as_of` under the
+  canonical half-open rule; event relations carry no window and are not filtered
+  (same treatment as `FindExperts`)
+- **Deterministic logic**: store-independent sort; result capped by documented
+  count/size limits; truncation reported, never implied
+- **Provenance returned**: every fact carries its edge provenance; an ambiguous
+  entity returns `candidates` and picks none (`ResolveEntity` contract)
+- **Read-only**: writes nothing; never materializes an inference
+- **Answers**: "What evidence does this entity have?" (the retrieval step an
+  answer is built from)
+
 ### ResolveEntity (internal resolver, not a user-facing tool)
 
 - **Input**: free-text name + optional label filter
@@ -119,7 +146,7 @@ IMPLEMENTED 2026-10-16 (`internal/graph` `TestFindOwnerAsOf`, `internal/api`
   (never a guess — the caller must choose)
 - **Deterministic logic**: exact `key` → exact `name` → case-insensitive
   exact → prefix. No fuzzy/embedding matching in v1.
-- Used *by* the five operations; exposed to the agent only as a candidate
+- Used *by* the operations; exposed to the agent only as a candidate
   chooser.
 
 ### FindConflicts (IMPLEMENTED — first E6 slice, 2026-10-16)

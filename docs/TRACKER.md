@@ -26,7 +26,7 @@
 | M0 | Architecture & repository baseline | **Verified** | `tron demo` 7/7; 10 test files; decision-log |
 | M1 | Trustworthy organizational memory | **In progress** | Slice 1: schema/provenance + fact-write contract (`internal/graph/load.go`); **slice 2 (2026-10-16)**: E6 contradiction detection (`graph.FindConflicts` + `POST /v1/conflicts`); **slice 3 (2026-10-16)**: E5 temporal as-of — optional `as_of` on `FindOwner`/`FindExperts` + `/v1/owner`/`/v1/experts`, canonical-UTC window normalization, empty-window rejection; **slice 4 (2026-10-16)**: E1 loader cross-load/label duplicate-key guard + runnable identity fixture; staleness **documented** (no threshold); **slice 5 (2026-10-16)**: E1 contract audit + adversarial suite (`TestResolveEntityContract`); key-shaped/name-tier ambiguity **recorded, not fixed**; **outstanding**: multi-source identity merge (M2); E1 PARTIAL, E5/E6 IMPLEMENTED |
 | M2 | Data ingestion & synchronization | **Not started** | only `internal/seed` writes facts |
-| M3 | Evidence-grounded reasoning | **In progress** | agent loop + 7 ops + `Answer.Validate`; no LLM provider wired |
+| M3 | Evidence-grounded reasoning | **In progress** | agent loop + 7 ops + `graph.AssembleEvidence` (bounded context assembly) + `Answer.Validate`; no LLM provider wired |
 | M4 | Decision support | **Not started** | — |
 | M5 | Controlled action execution | **Not started** | read-only today |
 | M6 | Proactive organizational intelligence | **Not started** | — |
@@ -62,7 +62,7 @@
 | Agent loop + tool schema | `internal/agent/agent.go` | **Implemented** | no provider adapter |
 | Answer validation / layering | `internal/agent`, `internal/knowledge` | **Verified** | — |
 | LLM provider adapter | — | **Not started** | M3; ADR required |
-| Retrieval/context assembly | — | **Not started** | M3 |
+| Retrieval/context assembly | `internal/graph/evidence.go` | **Implemented** | M3, 2026-10-16: `AssembleEvidence` + `assemble_context` tool — resolve (never picks among candidates), 1-hop edges scoped to optional relations, half-open `as_of` filter on state relations, store-independent sort, count/size bounds, explicit truncation + explicit `not_found`/`ambiguous`/`empty`; permission-aware drop + relevance/recency ranking still PROPOSED |
 | Rules engine | — | **Not started** | M4 |
 
 ### Ingestion
@@ -94,8 +94,8 @@
 ### Evaluation & docs
 | Component | Status | Evidence/Gaps |
 |---|---|---|
-| Go test suites (10 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants |
-| Eval suites E1–E12 | **In progress** | E1 PARTIAL (2026-10-16: `TestResolveEntity`, adversarial `TestResolveEntityContract` — recorded key-shaped ambiguity), E2 PARTIAL, E4 IMPLEMENTED (structural); E5 **IMPLEMENTED** (2026-10-16: `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`); E6 **IMPLEMENTED** (2026-10-16: `TestFindConflicts`, `TestEndpoints/conflicts`); E3/E7+ PROPOSED; baselines none |
+| Go test suites (11 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants; M3 `evidence_test.go` (relevance/no-leak, provenance/windows, half-open `as_of` incl. boundaries, explicit outcomes, count/size bounds, store-order independence) |
+| Eval suites E1–E12 | **In progress** | E1 PARTIAL (2026-10-16: `TestResolveEntity`, adversarial `TestResolveEntityContract` — recorded key-shaped ambiguity), E2 PARTIAL, E4 IMPLEMENTED (structural); E5 **IMPLEMENTED** (2026-10-16: `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`); E6 **IMPLEMENTED** (2026-10-16: `TestFindConflicts`, `TestEndpoints/conflicts`); M3 retrieval/context assembly **IMPLEMENTED** (2026-10-16, EVALUATION §2.4: `TestAssembleEvidence*`, `TestAssembleContextToolSuppliesEvidence`); E3/E7+ PROPOSED; baselines none |
 | Comparison baselines | **Not started** | keyword search, RAG, tool-LLM |
 | Canonical docs (this set) | **Verified** | `docs/README.md` index |
 

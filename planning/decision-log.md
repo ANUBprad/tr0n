@@ -135,6 +135,25 @@ The audit also confirmed `LoadNodes` is the only node-creating path in
 production code (`CREATE`/`MERGE` appear nowhere else), so the uniqueness
 guard covers every writer.
 
+## M3 context assembly landed (2026-10-16)
+
+Implements the retrieval half of `docs/REASONING.md` §2 ("Context assembly",
+previously PROPOSED). Evidence: `internal/graph/evidence.go`,
+`internal/graph/evidence_test.go` (`TestAssembleEvidence*`), and
+`internal/agent` `TestAssembleContextToolSuppliesEvidence` (through the loop).
+
+| Decision | Why | Alternatives | Tradeoffs / limitations | Status |
+|---|---|---|---|---|
+| **A dedicated read-only `graph.AssembleEvidence` returns a bounded, sorted `EvidenceContext` for one resolved entity** | Context assembly needs a deterministic "minimum evidence for this entity" step; composing existing ops per call would duplicate the resolve + trace + filter + bound logic at every caller | Have the agent loop call `resolve_entity` then `trace_evidence` and assemble client-side; add a general retrieval framework | One new op + one new tool; duplicates nothing from `TraceEvidence` (it reuses it internally). Reasons about one entity only (no query-level ranking) | DECIDED (contract) |
+| **`as_of` filters state relations only (half-open), event relations are never window-filtered** | Event edges carry no `valid_to` (`GRAPH_MODEL.md`) and `FindExperts` already leaves authored/reviewed branches unfiltered, so window-filtering events would conflate validity-time with event-time (E5 scope decision) | Filter every returned edge by `as_of`; ignore `as_of` here | An `as_of` context can include events from outside the instant (documented ceiling); state facts (the ownership/validity ones) are correctly scoped | DECIDED (semantics) |
+| **Deterministic store-independent sort (entity, relation, direction, neighbor key, valid_from, src_ref); result capped by count then serialized size; truncation always reported** | FalkorDB edge return order is not a contract; a bounded context must be reproducible and must not silently imply a partial result is exhaustive | Return DB order; unbounded result; omit truncation flag | Alphabetical-by-relation ordering means truncation drops later relations first (no relevance/recency ranking yet — PROPOSED). Limits are documented constants (`DefaultEvidenceLimit=64`, `DefaultEvidenceMaxBytes=64KiB`), not config | DECIDED (determinism) |
+| **Explicit outcomes: `not_found` / `ambiguous` (never picks `Candidates[0]`) / `empty` / malformed `as_of` → error** | Same identity and safety discipline as `ResolveEntity`; a retrieval step must not invent an entity or fabricate an empty-as-answer | Fall back to the top candidate; treat unknown as empty | Slightly more status handling for callers; keeps the never-guess invariant end to end | DECIDED (safety) |
+| **Exposed to the agent as the `assemble_context` tool (agent tool surface 6 → 7); graph-op boundary expands 5 + 1 → 7 + 1** | The loop needs the retrieval step to build grounded answers (`AGENT_SPEC.md`); consistent with the `FindConflicts` expansion precedent | Agent composes the two existing tools itself; keep it off the tool surface | Amends locked D7 again; reason recorded here per `docs/RULES.md` §6, contract added in `docs/AGENT_SPEC.md`. `FindConflicts` stays API-only (not a tool) | DECIDED (boundary) |
+| **No new answer format: `knowledge.Answer`/`Claim.Paths` cannot carry structured provenance, so retrieval supplies string fact paths the existing `Validate` accepts** | Changing the answer schema is out of scope; fabricating a richer format would be an unrequested contract change (`opencode.md` rule 9) | Extend `Claim` to hold structured provenance (id + provenance); add a parallel evidence type | **Known gap**: structured per-fact provenance lives in `EvidenceContext`, not in a `knowledge.Answer`; linking an answer's `Claim.Paths` back to `EvidenceFact` provenance is by path string only. Recorded in `docs/OPEN_QUESTIONS.md`; revisit when the answer format is next revised | DECIDED (gap, no format change) |
+
+`AssembleEvidence` takes no client lock of its own — it composes
+`ResolveEntity` + `TraceEvidence`, each of which locks; taking `c.mu` would
+deadlock. Read-only: it writes nothing and never materializes an inference.
 
 ## Notes
 New decisions must be added here. Mark as DECIDED only after team consensus during/at hackathon start.
