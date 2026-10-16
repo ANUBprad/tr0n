@@ -337,43 +337,48 @@ func TestLoadEdgesRejectsMissingEndpoint(t *testing.T) {
 	})
 }
 
-// E1 identity fixture (docs/EVALUATION.md §2.1, docs/SCHEMA.md §9): the
-// single-source resolver never merges and never guesses. Key uniqueness
-// is enforced by the loader only *within* a batch — database-level
-// enforcement is deferred (docs/OPEN_QUESTIONS.md, 2026-10-15) — so two
-// separate loads of the same key create two nodes. The resolver must
-// surface that ambiguity as a candidate list rather than silently
-// collapsing it to one key (which would be a false merge).
-func TestDuplicateKeyAcrossLoadsIsSurfacedNotMerged(t *testing.T) {
+// E1 identity fixture (docs/EVALUATION.md §2.3, docs/SCHEMA.md §9): the
+// loader enforces key uniqueness across loads and labels, so a duplicate
+// key can never create a second node — and the resolver therefore never
+// has to choose between two nodes with the same key. This is the
+// application-level guard for the deferred DB-level constraint
+// (docs/OPEN_QUESTIONS.md, 2026-10-15): enforcement lives in the writer,
+// the non-unique index stays, and nothing is merged.
+func TestDuplicateKeyAcrossLoadsIsRejected(t *testing.T) {
 	c := newTestClient(t)
 
 	first := nodeRow("person:ada")
 	first["name"] = "Ada (HR registry)"
+	mustLoadNodes(t, c, "Person", []map[string]interface{}{first})
+
+	// A second load of the same key is rejected before any write.
 	second := nodeRow("person:ada")
 	second["name"] = "Ada (GitHub)"
-	mustLoadNodes(t, c, "Person", []map[string]interface{}{first})
-	mustLoadNodes(t, c, "Person", []map[string]interface{}{second})
-
-	// Known limitation, not a relaxation: cross-load duplicate keys are
-	// not database-enforced. This fixture pins the current behavior so a
-	// future change (MERGE, or a cross-load guard) cannot land silently.
-	if n := nodeCount(t, c); n != 2 {
-		t.Fatalf("nodes = %d, want 2 (documenting the deferred-uniqueness limitation)", n)
+	err := c.LoadNodes("Person", []map[string]interface{}{second})
+	if err == nil || !strings.Contains(err.Error(), "already present") {
+		t.Fatalf("want 'already present' error for duplicate key, got %v", err)
+	}
+	if n := nodeCount(t, c); n != 1 {
+		t.Fatalf("nodes = %d, want 1 (rejected batch must not write)", n)
 	}
 
+	// The same key under a different label is equally ambiguous
+	// (endpoints/resolution match by key alone) and rejected too.
+	if err := c.LoadNodes("Service", []map[string]interface{}{nodeRow("person:ada")}); err == nil ||
+		!strings.Contains(err.Error(), "already present") {
+		t.Fatalf("want 'already present' error for cross-label duplicate, got %v", err)
+	}
+	if n := nodeCount(t, c); n != 1 {
+		t.Fatalf("nodes = %d, want 1 after cross-label rejection", n)
+	}
+
+	// With uniqueness enforced the resolver is unambiguous: one key, no
+	// candidate list, no false merge.
 	got, err := c.ResolveEntity("person:ada", "Person")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Key != "" {
-		t.Errorf("resolver collapsed a duplicate key to one answer (false merge): %+v", got)
-	}
-	if got.MatchedOn != "key" || len(got.Candidates) != 2 {
-		t.Errorf("want 2 candidates on the key tier, got %+v", got)
-	}
-	for _, cand := range got.Candidates {
-		if cand.Key != "person:ada" {
-			t.Errorf("candidate key = %q, want person:ada", cand.Key)
-		}
+	if got.Key != "person:ada" || got.MatchedOn != "key" || len(got.Candidates) != 0 {
+		t.Errorf("want unambiguous key match, got %+v", got)
 	}
 }

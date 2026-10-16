@@ -149,6 +149,28 @@ func validateEdge(rel string, r EdgeRow) error {
 	return nil
 }
 
+// existingKeys returns the subset of keys already present in the graph,
+// sorted, so LoadNodes can enforce key uniqueness across loads and labels
+// (CREATE alone would duplicate a key loaded earlier).
+func (c *Client) existingKeys(keys []string) ([]string, error) {
+	res, err := c.g.ROQuery(
+		`MATCH (n) WHERE n.key IN $keys RETURN n.key AS key ORDER BY n.key`,
+		map[string]interface{}{"keys": keys}, nil)
+	if err != nil {
+		// A graph that does not exist yet has no keys; FalkorDB reports
+		// reads against it as "empty key", same as Reset/countScalar.
+		if strings.Contains(err.Error(), "empty key") {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var found []string
+	for res.Next() {
+		found = append(found, field(res.Record(), "key"))
+	}
+	return found, nil
+}
+
 // missingEndpoints returns the from->to of every row whose source or
 // target key does not exist. It runs before any create, so a batch with
 // a dangling endpoint never mutates the graph.
@@ -226,6 +248,27 @@ func (c *Client) LoadNodes(label string, rows []map[string]interface{}) error {
 		if err := validateNode(label, r, seen); err != nil {
 			return fmt.Errorf("load %s nodes: row %d: %w", label, i, err)
 		}
+	}
+	// Reject keys already present in the graph. The in-batch `seen` check
+	// above only catches duplicates within one batch; CREATE would still
+	// silently add a *second* node for a key loaded earlier, and both edge
+	// endpoints and identity resolution match by key alone, so a duplicate
+	// would split (or cross-product) them. Uniqueness is therefore enforced
+	// across loads and labels here, not just within a batch
+	// (docs/OPEN_QUESTIONS.md, decision-log 2026-10-15 + follow-up).
+	// ponytail: check-then-create under the client mutex; the loader is
+	// single-writer (seeding is recreate-only), so there is no race window
+	// in v1 — upgrade path = a DB uniqueness constraint once FalkorDB
+	// proves one.
+	keys := make([]string, len(rows))
+	for i, r := range rows {
+		keys[i] = strCell(r, "key")
+	}
+	if existing, err := c.existingKeys(keys); err != nil {
+		return fmt.Errorf("check %s keys: %w", label, err)
+	} else if len(existing) > 0 {
+		return fmt.Errorf("load %s nodes: key(s) already present: %s",
+			label, strings.Join(existing, ", "))
 	}
 	// falkordb-go's param encoder type-switches exactly: convert to the
 	// shapes it knows ([]interface{} of map/string) before sending.
