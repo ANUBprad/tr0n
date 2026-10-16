@@ -679,6 +679,244 @@ func TestResolveEntity(t *testing.T) {
 	}
 }
 
+// TestResolveEntityContract is the E1 adversarial suite (docs/EVALUATION.md
+// §2.3, contract in docs/SCHEMA.md §9): stable `key` identity versus weak
+// name/title attributes, kind (label) compatibility, ambiguity over
+// guessing, determinism regardless of scan order, idempotency, and read-only
+// preservation of provenance and temporal windows. It runs against live
+// FalkorDB (skipped under -short).
+func TestResolveEntityContract(t *testing.T) {
+	c := newTestClient(t)
+
+	// Insertion order is controlled so a later subtest can prove the
+	// outcome does not depend on it.
+	clauses := []string{
+		`(:Person {key: 'person:ada', name: 'Ada'})`,
+		`(:Person {key: 'person:ada-2', name: 'Ada'})`,
+		`(:Person {key: 'person:bob', name: 'Bob'})`,
+		`(:Technology {key: 'tech:go', name: 'Go'})`,
+		`(:Person {key: 'person:golang', name: 'Go'})`,
+		`(:Service {key: 'service:payments', name: 'payments-api'})`,
+		`(:Service {key: 'service:payments-legacy', name: 'payments-api'})`,
+	}
+	seed := func(clauses []string) {
+		t.Helper()
+		if _, err := c.g.Query("CREATE "+strings.Join(clauses, ", "), nil, nil); err != nil {
+			t.Fatalf("seed fixture: %v", err)
+		}
+	}
+	seed(clauses)
+
+	// A state edge with full provenance and a closed window, to prove
+	// resolution neither erases evidence nor rewrites time.
+	if _, err := c.g.Query(`
+	MATCH (p:Person {key: 'person:ada'}), (s:Service {key: 'service:payments'})
+	CREATE (p)-[:OWNS {src_type: 'service_registry', src_ref: 'registry.json',
+	    observed_at: '2026-10-08T00:00:00Z', extraction: 'deterministic',
+	    valid_from: '2026-02-01T00:00:00Z', valid_to: '2026-06-01T00:00:00Z'}]->(s)`,
+		nil, nil); err != nil {
+		t.Fatalf("seed edge: %v", err)
+	}
+
+	// 1. A stable key + its kind resolves to exactly that entity.
+	t.Run("stable key resolves to the same entity", func(t *testing.T) {
+		got, err := c.ResolveEntity("person:ada", "Person")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Key != "person:ada" || got.MatchedOn != "key" || len(got.Candidates) != 0 {
+			t.Fatalf("want key match, got %+v", got)
+		}
+	})
+
+	// 2 & 3. Same display name, different stable keys: no merge, no
+	// arbitrary winner — both returned as candidates, sorted by key.
+	t.Run("same name never merges or picks arbitrarily", func(t *testing.T) {
+		got, err := c.ResolveEntity("Ada", "Person")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Key != "" {
+			t.Fatalf("picked one of two Adas: %+v", got)
+		}
+		if got.MatchedOn != "name" || len(got.Candidates) != 2 {
+			t.Fatalf("want 2 name candidates, got %+v", got)
+		}
+		seen := map[string]bool{}
+		for _, cand := range got.Candidates {
+			seen[cand.Key] = true
+		}
+		if !seen["person:ada"] || !seen["person:ada-2"] || len(seen) != 2 {
+			t.Errorf("candidates = %+v, want {person:ada, person:ada-2}", got.Candidates)
+		}
+		if got.Candidates[0].Key >= got.Candidates[1].Key {
+			t.Errorf("candidates not deterministically sorted by key: %+v", got.Candidates)
+		}
+	})
+
+	// 4. Incompatible kinds: a label narrows to its kind; without one, a
+	// name shared across kinds is ambiguous, never one chosen for the other.
+	t.Run("label narrows to a compatible kind", func(t *testing.T) {
+		if p, err := c.ResolveEntity("Go", "Person"); err != nil || p.Key != "person:golang" {
+			t.Errorf("Person Go: %+v, %v", p, err)
+		}
+		if tech, err := c.ResolveEntity("Go", "Technology"); err != nil || tech.Key != "tech:go" {
+			t.Errorf("Technology Go: %+v, %v", tech, err)
+		}
+		got, err := c.ResolveEntity("Go", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Key != "" || len(got.Candidates) != 2 {
+			t.Errorf("cross-kind name must be ambiguous, got %+v", got)
+		}
+	})
+
+	// 5. Repeated resolution is idempotent and writes nothing.
+	t.Run("repeated resolution is idempotent", func(t *testing.T) {
+		n0, e0 := nodeCount(t, c), edgeCount(t, c)
+		a, err := c.ResolveEntity("Ada", "Person")
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := c.ResolveEntity("Ada", "Person")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Key != b.Key || a.MatchedOn != b.MatchedOn || len(a.Candidates) != len(b.Candidates) {
+			t.Errorf("resolution not idempotent: %+v vs %+v", a, b)
+		}
+		for i := range a.Candidates {
+			if a.Candidates[i].Key != b.Candidates[i].Key {
+				t.Errorf("candidate order changed: %+v vs %+v", a.Candidates, b.Candidates)
+			}
+		}
+		if nodeCount(t, c) != n0 || edgeCount(t, c) != e0 {
+			t.Errorf("resolution mutated the graph: nodes %d->%d edges %d->%d",
+				n0, nodeCount(t, c), e0, edgeCount(t, c))
+		}
+	})
+
+	// 6. Resolution preserves provenance: the adjacent edge and its source
+	// evidence survive a resolution untouched.
+	t.Run("resolution preserves provenance", func(t *testing.T) {
+		res, err := c.ResolveEntity("service:payments", "Service")
+		if err != nil || res.Key != "service:payments" {
+			t.Fatalf("resolve: %+v, %v", res, err)
+		}
+		ev, err := c.TraceEvidence([]string{res.Key})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(ev) != 1 || !ev[0].Found || ev[0].Name != "payments-api" {
+			t.Fatalf("evidence lost: %+v", ev)
+		}
+		var owns bool
+		for _, e := range ev[0].Edges {
+			if e.Relation != "OWNS" {
+				continue
+			}
+			owns = true
+			if e.Provenance.SrcRef != "registry.json" || e.Provenance.ObservedAt != "2026-10-08T00:00:00Z" {
+				t.Errorf("provenance altered by resolution: %+v", e.Provenance)
+			}
+		}
+		if !owns {
+			t.Error("OWNS edge with provenance missing after resolution")
+		}
+	})
+
+	// 7. Existing temporal windows remain intact after resolution.
+	t.Run("temporal windows intact after resolution", func(t *testing.T) {
+		if _, err := c.ResolveEntity("service:payments", "Service"); err != nil {
+			t.Fatal(err)
+		}
+		inWindow, err := c.FindOwner("service:payments", mustTime(t, "2026-03-01T00:00:00Z"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(inWindow) != 1 || inWindow[0].Key != "person:ada" {
+			t.Errorf("as-of inside window changed: %+v", inWindow)
+		}
+		afterWindow, err := c.FindOwner("service:payments", mustTime(t, "2026-07-01T00:00:00Z"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(afterWindow) != 0 {
+			t.Errorf("as-of after window should be empty, got %+v", afterWindow)
+		}
+	})
+
+	// 8. A key-shaped string that matches no node's key still falls through
+	// to the exact name/title tier (SCHEMA.md §9 tier 2). This is the
+	// recorded E1 ambiguity (planning/decision-log.md, 2026-10-16): "person:ada"
+	// resolves as a key, but a *title* that happens to look like a key also
+	// resolves by name, because keyShapeOK (a bare "src:id" shape) cannot
+	// tell a key from a colon-containing title. Locked here as current
+	// behavior so any change is a deliberate, documented decision — not an
+	// accidental regression.
+	t.Run("key-shaped input still resolves by exact title", func(t *testing.T) {
+		seed([]string{`(:Decision {key: 'decision:adopt', title: 'Adopt: FalkorDB'})`})
+		got, err := c.ResolveEntity("Adopt: FalkorDB", "Decision")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Key != "decision:adopt" || got.MatchedOn != "name" {
+			t.Errorf("colon-title no longer resolves by exact name: %+v", got)
+		}
+	})
+
+	// 9. Missing or weak identifiers never auto-resolve (and never write).
+	t.Run("missing or weak identifiers never auto-resolve", func(t *testing.T) {
+		n0 := nodeCount(t, c)
+		for _, q := range []struct{ name, label string }{
+			{"", ""},
+			{"does-not-exist", ""},
+			{"person:ghost", "Person"},
+			{"ghost", "Person"},
+		} {
+			got, err := c.ResolveEntity(q.name, q.label)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Key != "" || len(got.Candidates) != 0 {
+				t.Errorf("query %q/%q resolved unsafely: %+v", q.name, q.label, got)
+			}
+		}
+		if nodeCount(t, c) != n0 {
+			t.Error("failed resolution created nodes")
+		}
+	})
+
+	// 10. The outcome does not depend on graph/scan insertion order:
+	// rebuild the same facts in reverse and re-run the same queries.
+	t.Run("outcome independent of insertion order", func(t *testing.T) {
+		if _, err := c.g.Query("MATCH (n) DETACH DELETE n", nil, nil); err != nil {
+			t.Fatal(err)
+		}
+		reversed := make([]string, len(clauses))
+		for i, cl := range clauses {
+			reversed[len(clauses)-1-i] = cl
+		}
+		seed(reversed)
+
+		got, err := c.ResolveEntity("Ada", "Person")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Key != "" || got.MatchedOn != "name" || len(got.Candidates) != 2 ||
+			got.Candidates[0].Key != "person:ada" || got.Candidates[1].Key != "person:ada-2" {
+			t.Errorf("ambiguity outcome changed with insertion order: %+v", got)
+		}
+		if single, err := c.ResolveEntity("Bob", "Person"); err != nil || single.Key != "person:bob" {
+			t.Errorf("single-hit outcome changed with insertion order: %+v, %v", single, err)
+		}
+		if keyed, err := c.ResolveEntity("tech:go", "Technology"); err != nil || keyed.Key != "tech:go" {
+			t.Errorf("key outcome changed with insertion order: %+v, %v", keyed, err)
+		}
+	})
+}
+
 // E6 contradiction detection (docs/EVALUATION.md §2.1): incompatible
 // state-relation claims over overlapping half-open windows surface with
 // full provenance; touching intervals, same-owner corroboration,
