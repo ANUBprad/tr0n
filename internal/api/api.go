@@ -5,6 +5,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,8 +30,51 @@ const maxBodyBytes = 1 << 20
 // go-redis pool.
 // ponytail: if pooling ever misbehaves under concurrency, upgrade path
 // is a per-request client — the handler signatures do not change.
-func Handler(c *graph.Client) http.Handler {
+func Handler(c *graph.Client) http.Handler { return HandlerWithModel(c, nil) }
+
+func HandlerWithModel(c *graph.Client, model *agent.Ollama) http.Handler {
 	mux := http.NewServeMux()
+	modelSlots := make(chan struct{}, 1)
+	mux.HandleFunc("GET /v1/model", func(w http.ResponseWriter, r *http.Request) {
+		name := ""
+		if model != nil {
+			name = model.Model
+		}
+		write(w, http.StatusOK, map[string]interface{}{"configured": model != nil, "provider": "ollama", "model": name})
+	})
+	mux.HandleFunc("POST /v1/grounded", func(w http.ResponseWriter, r *http.Request) {
+		if model == nil {
+			write(w, http.StatusServiceUnavailable, map[string]string{"error": "Local answering model is not configured"})
+			return
+		}
+		var req agent.GroundedRequest
+		if !decode(w, r, &req) {
+			return
+		}
+		if strings.TrimSpace(req.Question) == "" || len(req.Question) > 2000 || len(req.Target) > 300 {
+			badRequest(w, "invalid question or target length")
+			return
+		}
+		if _, ok := optionalInstant(w, "as_of", req.AsOf); !ok {
+			return
+		}
+		select {
+		case modelSlots <- struct{}{}:
+			defer func() { <-modelSlots }()
+		default:
+			write(w, http.StatusTooManyRequests, map[string]string{"error": "Local model is busy; retry after the current question"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
+		defer cancel()
+		decide, usage := model.Decider()
+		result, err := agent.GroundedAsk(ctx, c, req, decide)
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		write(w, http.StatusOK, map[string]interface{}{"result": result, "usage": usage})
+	})
 	mux.HandleFunc("GET /v1/catalog", func(w http.ResponseWriter, r *http.Request) {
 		res, err := c.Catalog()
 		if err != nil {

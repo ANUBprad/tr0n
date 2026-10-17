@@ -395,8 +395,10 @@ func Generate() *Data {
 		case n%17 == 7:
 			state = "open"
 		}
+		// Keep the pull request's subject aligned with the service behind its
+		// repository so multi-hop Company Brain answers describe a coherent path.
 		props := map[string]interface{}{
-			"title":  fmt.Sprintf("%s: %s", prefixes[i%4], subjects[(n*3)%len(subjects)]),
+			"title":  fmt.Sprintf("%s: %s", prefixes[i%4], services[(n-1)%15]),
 			"number": 1000 + n, "state": state,
 			"created_at": rfc((n * 7) % 600),
 		}
