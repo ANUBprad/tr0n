@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/ANUBprad/tr0n/internal/agent"
@@ -72,12 +73,22 @@ func main() {
 				}
 			}
 		}
-		report := evaluation.Run(context.Background(), c, model, func(r evaluation.Result) {
-			fmt.Fprintf(os.Stderr, "%s: %s rubric=%v citations=%v total=%dms graph=%dms model=%dms validate=%dms render=%dms turns=%d\n", r.Case.ID, r.Status, r.RubricPass, r.CitationValid, r.LatencyMS, r.GraphMS, r.ModelMS, r.ValidateMS, r.RenderMS, r.Turns)
-		})
+		progress := func(r evaluation.Result) {
+			fmt.Fprintf(os.Stderr, "%s: %s rubric=%v citations=%v total=%dms graph=%dms model=%dms validate=%dms render=%dms turns=%d repeated=%d recoveries=%d\n", r.Case.ID, r.Status, r.RubricPass, r.CitationValid, r.LatencyMS, r.GraphMS, r.ModelMS, r.ValidateMS, r.RenderMS, r.Turns, r.RepeatedRetrievals, r.GuardRecoveries)
+		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(report)
+		// TRON_EVAL_TRIALS > 1 runs the whole corpus repeatedly and emits an
+		// aggregate TrialsReport instead of a single Report.
+		if trials, _ := strconv.Atoi(os.Getenv("TRON_EVAL_TRIALS")); trials > 1 {
+			report := evaluation.RunTrials(context.Background(), c, model, trials, os.Getenv("TRON_EVAL_COMMIT"), os.Getenv("TRON_EVAL_SEED"), func(trial int, r evaluation.Result) {
+				fmt.Fprintf(os.Stderr, "trial %d/%d ", trial+1, trials)
+				progress(r)
+			})
+			enc.Encode(report)
+		} else {
+			enc.Encode(evaluation.Run(context.Background(), c, model, progress))
+		}
 
 	case len(os.Args) >= 2 && os.Args[1] == "plan":
 		options := []rules.Option{

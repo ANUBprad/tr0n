@@ -112,6 +112,13 @@ type Result struct {
 	Usage         agent.Usage           `json:"usage"`
 	Report        *agent.GroundedReport `json:"report,omitempty"`
 	Error         string                `json:"error,omitempty"`
+	// Failure is a short, honest reason this case did not pass ("timeout",
+	// "status=abstained want=answered", "citation-invalid", ...). Empty on pass.
+	Failure string `json:"failure,omitempty"`
+	// RepeatedRetrievals and GuardRecoveries expose the shared loop's progress
+	// behaviour per case (see agent.GroundedReport).
+	RepeatedRetrievals int `json:"repeated_retrievals"`
+	GuardRecoveries    int `json:"guard_recoveries"`
 }
 
 type Report struct {
@@ -132,6 +139,23 @@ type Report struct {
 	Total               int            `json:"total"`
 	HumanSemanticReview string         `json:"human_semantic_review"`
 	CostNote            string         `json:"cost_note"`
+	// RepeatedRetrievals/GuardRecoveries sum the loop counters across cases;
+	// StepBudgetExhausted counts provider_error results (step budget exhausted).
+	RepeatedRetrievals  int `json:"repeated_retrievals"`
+	GuardRecoveries     int `json:"guard_recoveries"`
+	StepBudgetExhausted int `json:"step_budget_exhausted"`
+}
+
+// expectedStatus is the status a case requires: an explicit override, else
+// "abstained" for an abstention case, else "answered".
+func expectedStatus(tc Case) string {
+	if tc.ExpectedStatus != "" {
+		return tc.ExpectedStatus
+	}
+	if tc.Abstain {
+		return "abstained"
+	}
+	return "answered"
 }
 
 // Rubric evaluates one labeled case against a grounded report. It is pure:
@@ -149,14 +173,7 @@ func Rubric(tc Case, answer *agent.GroundedReport) (pass, citationValid bool) {
 		answer.Status != "invalid_answer" && answer.Status != "provider_error"
 	claims := len(answer.Grounded.Answer.Claims)
 
-	wantStatus := tc.ExpectedStatus
-	if wantStatus == "" {
-		if tc.Abstain {
-			wantStatus = "abstained"
-		} else {
-			wantStatus = "answered"
-		}
-	}
+	wantStatus := expectedStatus(tc)
 
 	// A permitted abstention is always acceptable (and never contains claims).
 	if tc.AllowAbstain && answer.Status == "abstained" && claims == 0 {
@@ -244,7 +261,15 @@ func Run(ctx context.Context, c *graph.Client, model *agent.Ollama, progress fun
 			result.RenderMS = answer.RenderMS
 			result.Turns = answer.Turns
 			result.Claims = len(answer.Grounded.Answer.Claims)
+			result.RepeatedRetrievals = answer.RepeatedRetrievals
+			result.GuardRecoveries = answer.GuardRecoveries
 			result.RubricPass, result.CitationValid = Rubric(tc, answer)
+			result.Failure = failureReason(tc, result)
+		}
+		out.RepeatedRetrievals += result.RepeatedRetrievals
+		out.GuardRecoveries += result.GuardRecoveries
+		if result.Status == "provider_error" {
+			out.StepBudgetExhausted++
 		}
 		if result.RubricPass {
 			out.RubricPassed++
@@ -271,5 +296,103 @@ func Run(ctx context.Context, c *graph.Client, model *agent.Ollama, progress fun
 			progress(result)
 		}
 	}
+	return out
+}
+
+// failureReason names why a case failed in a form an operator can act on. It is
+// coarse on purpose — the exact term/relation rule is in Case.Rubric.
+func failureReason(tc Case, r Result) string {
+	switch {
+	case r.Error != "":
+		return "error: " + r.Error
+	case r.Timeout:
+		return "timeout"
+	case r.Status != expectedStatus(tc):
+		return "status=" + r.Status + " want=" + expectedStatus(tc)
+	case !r.CitationValid:
+		return "citation-invalid"
+	case !r.RubricPass:
+		return "rubric-mismatch"
+	}
+	return ""
+}
+
+// CaseSummary aggregates one labeled case across repeated trials.
+type CaseSummary struct {
+	ID            string   `json:"id"`
+	Category      string   `json:"category"`
+	RubricPasses  int      `json:"rubric_passes"`
+	CitationValid int      `json:"citation_valid"`
+	Answered      int      `json:"answered"`
+	Abstained     int      `json:"abstained"`
+	Invalid       int      `json:"invalid"`
+	Timeout       int      `json:"timeout"`
+	Error         int      `json:"error"`
+	Failures      []string `json:"failures,omitempty"`
+}
+
+// TrialsReport is a repeated-trial evaluation. Reports holds the full result
+// set of every trial (the raw evidence); PerCase aggregates pass rates and
+// outcome distributions across those trials. Repeated trials of a small
+// synthetic corpus are not statistically conclusive, and citation validity is
+// still only structural — never a claim of human-reviewed semantic accuracy.
+type TrialsReport struct {
+	Model   string        `json:"model"`
+	Commit  string        `json:"commit"`
+	Seed    string        `json:"seed"`
+	Started string        `json:"started"`
+	Trials  int           `json:"trials"`
+	Reports []Report      `json:"reports"`
+	PerCase []CaseSummary `json:"per_case"`
+	Notes   []string      `json:"notes"`
+}
+
+// RunTrials runs the full labeled corpus n times against the same model and
+// aggregates the outcomes. progress, when set, is called per case with the
+// trial index.
+func RunTrials(ctx context.Context, c *graph.Client, model *agent.Ollama, n int, commit, seedName string, progress func(int, Result)) TrialsReport {
+	out := TrialsReport{Model: model.Model, Commit: commit, Seed: seedName, Started: time.Now().UTC().Format(time.RFC3339), Reports: []Report{}, PerCase: []CaseSummary{}}
+	out.Notes = []string{
+		"repeated trials of a small synthetic corpus are not statistically conclusive",
+		"citation validity is structural, not proof of entailment; no human semantic review was performed",
+	}
+	index := map[string]int{}
+	for _, tc := range Cases {
+		index[tc.ID] = len(out.PerCase)
+		out.PerCase = append(out.PerCase, CaseSummary{ID: tc.ID, Category: tc.Category})
+	}
+	for i := 0; i < n; i++ {
+		var trialProgress func(Result)
+		if progress != nil {
+			trialProgress = func(r Result) { progress(i, r) }
+		}
+		rep := Run(ctx, c, model, trialProgress)
+		out.Reports = append(out.Reports, rep)
+		for _, r := range rep.Results {
+			s := &out.PerCase[index[r.Case.ID]]
+			if r.RubricPass {
+				s.RubricPasses++
+			}
+			if r.CitationValid {
+				s.CitationValid++
+			}
+			switch {
+			case r.Error != "":
+				s.Error++
+			case r.Timeout:
+				s.Timeout++
+			case r.Status == "answered":
+				s.Answered++
+			case r.Status == "abstained":
+				s.Abstained++
+			default:
+				s.Invalid++
+			}
+			if r.Failure != "" {
+				s.Failures = append(s.Failures, r.Failure)
+			}
+		}
+	}
+	out.Trials = n
 	return out
 }
