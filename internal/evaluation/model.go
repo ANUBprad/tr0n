@@ -42,6 +42,11 @@ type Result struct {
 	RubricPass    bool                  `json:"rubric_pass"`
 	Claims        int                   `json:"claims"`
 	LatencyMS     int64                 `json:"latency_ms"`
+	GraphMS       int64                 `json:"graph_ms"`
+	ModelMS       int64                 `json:"model_ms"`
+	ValidateMS    int64                 `json:"validate_ms"`
+	RenderMS      int64                 `json:"render_ms"`
+	Turns         int                   `json:"turns"`
 	Usage         agent.Usage           `json:"usage"`
 	Report        *agent.GroundedReport `json:"report,omitempty"`
 	Error         string                `json:"error,omitempty"`
@@ -75,6 +80,11 @@ func Run(ctx context.Context, c *graph.Client, model *agent.Ollama, progress fun
 		} else {
 			result.Status = answer.Status
 			result.LatencyMS = answer.LatencyMS
+			result.GraphMS = answer.GraphMS
+			result.ModelMS = answer.ModelMS
+			result.ValidateMS = answer.ValidateMS
+			result.RenderMS = answer.RenderMS
+			result.Turns = answer.Turns
 			result.Claims = len(answer.Grounded.Answer.Claims)
 			result.CitationValid = answer.Grounded.Validate() == nil && answer.Status != "invalid_answer" && answer.Status != "provider_error"
 			if tc.Abstain {

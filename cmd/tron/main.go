@@ -70,7 +70,7 @@ func main() {
 			}
 		}
 		report := evaluation.Run(context.Background(), c, model, func(r evaluation.Result) {
-			fmt.Fprintf(os.Stderr, "%s: %s rubric=%v citations=%v %dms\n", r.Case.ID, r.Status, r.RubricPass, r.CitationValid, r.LatencyMS)
+			fmt.Fprintf(os.Stderr, "%s: %s rubric=%v citations=%v total=%dms graph=%dms model=%dms validate=%dms render=%dms turns=%d\n", r.Case.ID, r.Status, r.RubricPass, r.CitationValid, r.LatencyMS, r.GraphMS, r.ModelMS, r.ValidateMS, r.RenderMS, r.Turns)
 		})
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")

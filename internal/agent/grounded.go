@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,12 +24,24 @@ type GroundedRequest struct {
 	AsOf     string `json:"as_of,omitempty"`
 }
 
+// GroundedReport carries the answer plus per-phase timing. Phase durations
+// are measured with the monotonic clock. GraphMS and ModelMS are *nested*
+// inside the agent loop that dominates LatencyMS; ValidateMS and RenderMS run
+// after the loop. Do NOT sum the phases to get the total — LatencyMS is the
+// single authoritative end-to-end figure. Fields are reported on answered,
+// abstained, invalid, provider_error, and timed-out paths alike.
 type GroundedReport struct {
-	Status    string                  `json:"status"`
-	Grounded  graph.GroundedAnswer    `json:"grounded"`
-	Contexts  []graph.EvidenceContext `json:"contexts"`
-	Warnings  []string                `json:"warnings"`
-	LatencyMS int64                   `json:"latency_ms"`
+	Status     string                  `json:"status"`
+	Grounded   graph.GroundedAnswer    `json:"grounded"`
+	Contexts   []graph.EvidenceContext `json:"contexts"`
+	Warnings   []string                `json:"warnings"`
+	RequestID  string                  `json:"request_id"`
+	LatencyMS  int64                   `json:"latency_ms"`
+	GraphMS    int64                   `json:"graph_ms"`
+	ModelMS    int64                   `json:"model_ms"`
+	ValidateMS int64                   `json:"validate_ms"`
+	RenderMS   int64                   `json:"render_ms"`
+	Turns      int                     `json:"turns"`
 }
 
 type ModelClaim struct {
@@ -52,8 +66,17 @@ func GroundedAsk(ctx context.Context, c *graph.Client, req GroundedRequest, deci
 		return nil, fmt.Errorf("answering provider is not configured")
 	}
 	start := time.Now()
-	out := &GroundedReport{Status: "abstained", Contexts: []graph.EvidenceContext{}, Warnings: []string{}}
-	defer func() { out.LatencyMS = time.Since(start).Milliseconds() }()
+	out := &GroundedReport{Status: "abstained", Contexts: []graph.EvidenceContext{}, Warnings: []string{}, RequestID: newRequestID()}
+	// Phase accumulators. GraphMS and ModelMS are nested inside the agent loop;
+	// ValidateMS and RenderMS run after it. Every return path — answered,
+	// abstained, invalid, provider_error, timeout — publishes them via this defer.
+	var graphMS, modelMS, validateMS, renderMS int64
+	turnsN := 0
+	defer func() {
+		out.LatencyMS = time.Since(start).Milliseconds()
+		out.GraphMS, out.ModelMS = graphMS, modelMS
+		out.ValidateMS, out.RenderMS, out.Turns = validateMS, renderMS, turnsN
+	}()
 	tool := Tools(c)["assemble_context"]
 	tool.Exec = func(ctx context.Context, raw json.RawMessage) (interface{}, error) {
 		if err := ctx.Err(); err != nil {
@@ -97,7 +120,9 @@ func GroundedAsk(ctx context.Context, c *graph.Client, req GroundedRequest, deci
 			r.MaxBytes = 16384
 		}
 		sort.Strings(r.Relations)
+		graphStart := time.Now()
 		result, err := c.AssembleEvidence(r)
+		graphMS += time.Since(graphStart).Milliseconds()
 		if err == nil {
 			for _, prior := range out.Contexts {
 				if result.Entity != nil && prior.Entity != nil && result.Entity.Key == prior.Entity.Key && strings.Join(result.Relations, ",") == strings.Join(prior.Relations, ",") && result.Limit == prior.Limit && slices.Equal(result.Facts, prior.Facts) {
@@ -114,6 +139,16 @@ Use assemble_context deliberately (maximum four retrievals). Never invent an ent
 Select only retrieved relationship facts that answer the question. Use the response schema supplied by the provider adapter. Cite only returned IDs and respect edge direction. Do not infer rationale or properties from a relationship alone. Abstain if evidence is insufficient, ambiguous, not_found, empty, or over_budget. Do not recommend or invent in this mode.
 Question input: `+string(question), map[string]Tool{"assemble_context": tool})
 	s.MaxSteps = 6
+	// timedDecide measures provider (model) generation time and counts actual
+	// model decisions. Guard short-circuits that never reach the provider are
+	// not counted as model calls.
+	timedDecide := func(ctx context.Context, system string, tl []Turn) (Decision, error) {
+		modelStart := time.Now()
+		d, err := decide(ctx, system, tl)
+		modelMS += time.Since(modelStart).Milliseconds()
+		turnsN++
+		return d, err
+	}
 	guardedDecide := func(ctx context.Context, system string, turns []Turn) (Decision, error) {
 		if conflictingOwners(out.Contexts) {
 			out.Warnings = append(out.Warnings, "Conflicting ownership records at the requested time; resolve their sources before choosing an owner.")
@@ -122,7 +157,7 @@ Question input: `+string(question), map[string]Tool{"assemble_context": tool})
 		if len(out.Contexts) > 0 && out.Contexts[len(out.Contexts)-1].Status != graph.EvidenceStatusOK {
 			return Decision{Answer: `{"claims":[]}`}, nil
 		}
-		d, err := decide(ctx, system, turns)
+		d, err := timedDecide(ctx, system, turns)
 		if err != nil || d.Answer == "" || !asksForAuthorship(req.Question) {
 			return d, err
 		}
@@ -223,7 +258,10 @@ Question input: `+string(question), map[string]Tool{"assemble_context": tool})
 		candidate.Grounding = append(candidate.Grounding, graph.ClaimGrounding{Subject: cl.Subject, Relation: cl.Relation, EvidenceIDs: cl.EvidenceIDs})
 	}
 	candidate.Answer.Answer = strings.Join(texts, "\n")
-	if err := candidate.Validate(); err != nil {
+	validateStart := time.Now()
+	validateErr := candidate.Validate()
+	validateMS = time.Since(validateStart).Milliseconds()
+	if validateErr != nil {
 		out.Status = "invalid_answer"
 		out.Grounded.Answer.Answer = "The proposed answer failed citation validation. No claim was accepted."
 		out.Grounded.Answer.Claims = []knowledge.Claim{}
@@ -245,6 +283,7 @@ Question input: `+string(question), map[string]Tool{"assemble_context": tool})
 			facts[f.ID] = f
 		}
 	}
+	renderStart := time.Now()
 	texts = nil
 	for i, grounding := range candidate.Grounding {
 		parts := []string{}
@@ -269,6 +308,7 @@ Question input: `+string(question), map[string]Tool{"assemble_context": tool})
 	candidate.Answer.Answer = strings.Join(texts, "\n")
 	out.Grounded = candidate
 	out.Status = "answered"
+	renderMS = time.Since(renderStart).Milliseconds()
 	return out, nil
 }
 
@@ -277,6 +317,17 @@ func first(ids []string) string {
 		return ""
 	}
 	return ids[0]
+}
+
+// newRequestID returns a short random correlation id so one request's phase
+// timings can be associated end-to-end. Low overhead; crypto/rand is
+// sufficient here and never fails in practice.
+func newRequestID() string {
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("%08x", time.Now().UnixNano()&0xffffffff)
+	}
+	return hex.EncodeToString(b[:])
 }
 
 func asksForAuthorship(question string) bool {

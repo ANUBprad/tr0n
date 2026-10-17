@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ANUBprad/tr0n/internal/graph"
 	"github.com/ANUBprad/tr0n/internal/seed"
@@ -136,6 +137,85 @@ func TestGroundedAnswerPath(t *testing.T) {
 		})
 	}
 }
+
+// TestGroundedReportPhaseTiming locks the per-phase timing contract: every
+// return path publishes a request id and monotonic phase durations, nested
+// phases never exceed the end-to-end total, and turns counts actual provider
+// calls (guard short-circuits are not model calls).
+func TestGroundedReportPhaseTiming(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires FalkorDB")
+	}
+	addr := os.Getenv("TRON_FALKOR_ADDR")
+	if addr == "" {
+		addr = "localhost:6379"
+	}
+	c, err := graph.New(addr, "tron_grounded_timing_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	defer c.Delete()
+	if _, err := seed.Load(c); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("answered records graph, model, validate, render, turns", func(t *testing.T) {
+		decides := 0
+		decide := func(ctx context.Context, system string, turns []Turn) (Decision, error) {
+			decides++
+			time.Sleep(40 * time.Millisecond) // make generation time observable
+			if len(turns) == 0 {
+				raw, _ := json.Marshal(graph.EvidenceRequest{Entity: "payments-api", Relations: []string{"OWNS"}})
+				return Decision{Calls: []Call{{Name: "assemble_context", Args: raw}}}, nil
+			}
+			ec := turns[0].Result.(graph.EvidenceContext)
+			f := ec.Facts[0]
+			raw, _ := json.Marshal(map[string]interface{}{"claims": []ModelClaim{{Text: "x", Subject: f.Entity, Relation: f.Relation, EvidenceIDs: []string{f.ID}}}})
+			return Decision{Answer: string(raw)}, nil
+		}
+		report, err := GroundedAsk(context.Background(), c, GroundedRequest{Question: "Who owns payments-api?"}, decide)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if report.Status != "answered" {
+			t.Fatalf("status %q", report.Status)
+		}
+		if report.RequestID == "" {
+			t.Fatal("request id missing")
+		}
+		if report.Turns != decides || report.Turns < 2 {
+			t.Fatalf("turns=%d decides=%d", report.Turns, decides)
+		}
+		if report.ModelMS < 30 {
+			t.Fatalf("model_ms not measured: %d", report.ModelMS)
+		}
+		// Nested phases can never exceed the end-to-end total.
+		if report.GraphMS < 0 || report.ValidateMS < 0 || report.RenderMS < 0 ||
+			report.GraphMS > report.LatencyMS || report.ModelMS > report.LatencyMS {
+			t.Fatalf("nested phases exceed total: total=%d graph=%d model=%d validate=%d render=%d",
+				report.LatencyMS, report.GraphMS, report.ModelMS, report.ValidateMS, report.RenderMS)
+		}
+	})
+
+	t.Run("abstained still records timing", func(t *testing.T) {
+		decide := func(ctx context.Context, system string, turns []Turn) (Decision, error) {
+			raw, _ := json.Marshal(graph.EvidenceRequest{Entity: "does-not-exist"})
+			return Decision{Calls: []Call{{Name: "assemble_context", Args: raw}}}, nil
+		}
+		report, err := GroundedAsk(context.Background(), c, GroundedRequest{Question: "Who owns this service?"}, decide)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if report.Status != "abstained" {
+			t.Fatalf("status %q", report.Status)
+		}
+		if report.RequestID == "" || report.Turns < 1 || report.GraphMS < 0 {
+			t.Fatalf("abstention lost timing: %+v", report)
+		}
+	})
+}
+
 func TestConflictingOwners(t *testing.T) {
 	a := graph.EvidenceFact{Entity: "service:x", Relation: "OWNS", Direction: "in", Neighbor: graph.NodeRef{Key: "person:a"}}
 	b := a
