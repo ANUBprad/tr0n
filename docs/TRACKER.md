@@ -18,7 +18,11 @@ Updated 2026-10-17. This describes the local Track 03 build. The broader M0–M7
 | Read-only API | Verified | `/v1/ask`, `/v1/grounded`, `/v1/model`, `/v1/catalog`, health, seven graph operations; real HTTP integration tests |
 | Docker packaging and persistence | Implemented | Dockerfile, digest-pinned FalkorDB, named volume, append-only logging, health checks |
 | Model-loop cancellation and call bounds | Verified | `TestLoopStepBudgetAndInvalidMoves` |
-| Optional local-model Q&A | Implemented; quality gate partial | `/v1/grounded`, Ollama adapter, bounded retrieval/citations; ten-case corpus is reported in `EVALUATION.md`; participant review remains pending |
+| Grounded local-model Q&A & review | Partial | `/v1/grounded`, Ollama adapter, bounded retrieval/citations; ten synthetic samples reviewed; no broad entailment evaluation |
+| Comparative baseline benchmark | Not implemented | Search/RAG baselines have not been run; earlier hard-coded example scores were removed |
+| Decision support & option comparison (M4) | Partial | `internal/rules`, `POST /v1/plan`, `tron plan`; validated caller-scored options, Pareto and weight perturbation; scores are not graph-sourced |
+| Controlled action execution (M5) | Partial | Authenticated tenant roles can create local drafts; in-memory replay/audit only; no durable state or external execution; state changes denied |
+| Proactive organizational alerts (M6) | Partial | Snapshot graph rules report conflicts and service ownership risks; no labeled quality evaluation |
 | Markdown source snapshots | Verified | Explicit manifest, idempotent retry, retained cursor on partial failure, source-owned deletion; see `LOCAL_MODEL_AND_SYNC.md` |
 | Identity and database constraints | Implemented | Reviewed aliases, per-label unique constraints (`tron constraints`), cross-label application check |
 | Tenant graph selection | Partial | Server-owned bearer credentials and UI workspace switching; no per-document ACL or managed identity |
@@ -41,11 +45,14 @@ Updated 2026-10-17. This describes the local Track 03 build. The broader M0–M7
 
 - E3: stable content-derived `EvidenceFact.ID` and `GroundedAnswer` validate FACT citations against carried evidence, subjects, relationships, and context status. Covered by `TestGroundedAnswer*`. This is structural grounding, not semantic entailment; the existing `/v1/ask` response is not automatically converted to this new contract.
 - M3 audit: total fact ordering and explicit `over_budget` outcomes are retained, including malformed-window, boundary, and size-limit tests.
-- E3 remains PARTIAL; local-model evaluations are now executable, with structural validity and answer relevance reported separately. Participant semantic review and comparison baselines remain outstanding.
+- E3 remains PARTIAL: the ten reviewed synthetic examples and automated rubric are limited evidence; no comparative baseline or broad entailment evaluation exists.
+- M4 remains PARTIAL: `rules.EvaluatePlan` calculates a ranking over caller-supplied scores; it does not derive option scores from graph evidence.
+- M5 remains PARTIAL: only authenticated local draft generation is available. Replay and audit records are process-local; no target mutation or verified outcome is implemented.
+- M6 remains PARTIAL: `rules.DetectAlerts` detects candidate snapshot risks, but `TestDetectAlerts` does not establish precision/recall.
 
 - M3: `AssembleEvidence` and `assemble_context` supply deterministic one-hop context with relationship/time filters, count and byte bounds, and explicit truncation. Verified by `TestAssembleEvidence*` and `TestAssembleContextToolSuppliesEvidence`.
 - E1: adversarial `TestResolveEntityContract` retained; key-shaped name-tier ambiguity remains documented in EVALUATION.md.
-- E5/E6 temporal and conflict suites retained. Broader E1–E12 evaluation and comparison baselines remain incomplete.
+- E5/E6 temporal and conflict suites retained. E9–E11 have focused prototype tests, not full evaluation suites.
 
 ## Deliberate boundaries
 
@@ -55,6 +62,6 @@ Updated 2026-10-17. This describes the local Track 03 build. The broader M0–M7
 - Document refresh replaces the latest body; it is not a bitemporal document archive. Ownership changes retain edge history.
 - Validity windows use whole-second canonical UTC precision. Subsecond window endpoints are rejected rather than silently truncated.
 - As-of expertise filters ownership, not all historical activity.
-- M4 planning, M5 approved actions, and M6 alerts remain gated on M3 evaluation and participant review. M7 has partial tenant isolation, not production readiness.
+- M7 has partial tenant isolation, not production readiness.
 
 Merged-code runtime verification is recorded in [VERIFICATION.md](VERIFICATION.md).

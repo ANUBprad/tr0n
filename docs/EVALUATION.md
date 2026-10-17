@@ -37,15 +37,15 @@ cost/latency — the parts that don't exist yet.
 |---|---|---|---|---|
 | E1 | **Entity resolution** | pairs of records known to be same/different | merge correctness, no false merges | PARTIAL (2026-10-16: deterministic tiers `TestResolveEntity`; adversarial contract suite `TestResolveEntityContract`; loader rejects cross-load/label duplicate keys `TestDuplicateKeyAcrossLoadsIsRejected`; multi-source merge deferred to M2) |
 | E2 | **Multi-hop graph queries** | fixtures answerable only via ≥3 hops | the product thesis, as a test | PARTIAL (seed contract test) |
-| E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PARTIAL (local Ollama, bounded graph retrieval, citation selection, and a 10-case answer/abstention corpus now run; see §6; semantic participant review and baseline comparisons remain open) |
+| E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PARTIAL (10 synthetic cases were participant-reviewed; automated rubric and citation structure do not prove general entailment; no valid competing baselines) |
 | E4 | **Citation support** | answers + their claims | every claim cites a valid path (`Answer.Validate`) | IMPLEMENTED (structural) |
 | E5 | **Temporal accuracy** | time-shifted fixtures (owner 2026 vs 2027) | correct as-of results | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindOwnerAsOf`/`TestFindExpertsAsOf`, `internal/graph` `TestLoadEdgesNormalizesOffsetToUTC`, `internal/api` `TestEndpoints/owner`+`/experts`, seed handoff fixture; see §2.2 |
 | E6 | **Contradiction detection** | injected conflicting state-relation claims (overlapping half-open windows) + non-conflicting decoys | both surfaced, none hidden; nothing extra flagged | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindConflicts`, `internal/api` `TestEndpoints/conflicts`; scope decided 2026-10-15, see §2.1 |
 | E7 | **Permission enforcement** | facts with differing scopes | no derived leakage | PROPOSED |
-| E8 | **Recommendation quality** | scenarios rated by humans | useful/correct vs baseline | PROPOSED |
-| E9 | **Action authorization** | allow / require-approval / deny fixtures | gate honors policy | PROPOSED |
-| E10 | **Duplicate & failed execution** | replayed idempotency keys; injected target failures | executes once; failures classified | PROPOSED |
-| E11 | **Proactive alert quality** | events with/without true alerts | precision/recall of alerts | PROPOSED (no proactive feature yet) |
+| E8 | **Recommendation quality** | scenarios rated by humans | useful/correct vs baseline | PARTIAL (deterministic calculator and input validation; no graph-derived scores or human scenario ratings) |
+| E9 | **Action authorization** | allow / require-approval / deny fixtures | gate honors policy | PARTIAL (authenticated local drafts only; state-changing actions are denied) |
+| E10 | **Duplicate & failed execution** | replayed idempotency keys; injected target failures | executes once; failures classified | PARTIAL (single-process in-memory draft replay only; no durable log or target failure adapter) |
+| E11 | **Proactive alert quality** | events with/without true alerts | precision/recall of alerts | PARTIAL (snapshot rules; no labeled alert corpus or measured precision/recall) |
 | E12 | **Latency & cost** | workload replay | p50/p95 per op; tokens/$ per answer | PARTIAL (per-op ms captured in UI) |
 
 **Note (2026-10-17)**: M3 retrieval / context assembly is implemented and tested
@@ -266,9 +266,9 @@ the graph's value is measurable rather than asserted:
 | **Tool-using LLM without memory/evidence** | LLM with generic tools, no graph | isolates the contribution of memory + provenance |
 | **TRON (graph + provenance)** | the system under test | — |
 
-Metrics per system: answer correctness, citation validity, abstention
-calibration, multi-hop accuracy, latency, cost. **Publish the baseline and
-the corpus**; a result without both is not a result.
+### Comparative benchmark status
+
+No comparative baseline implementation or measurements are included. Earlier architecture scores were hard-coded examples, not benchmark results, and have been removed from the executable and this report. Do not use them to claim TRON outperforms search or RAG.
 
 ## 4. Acceptance-threshold process (empirical)
 
@@ -311,8 +311,8 @@ claim counts, latency, and token use. `citation_passed` includes abstention
 envelopes, so it must not be read as an answer-accuracy score. The stricter
 `valid_claim_count/claim_count` checks nonempty claim envelopes only; neither
 proves relevance. Latency varies with GPU/CPU offload and cold starts; hardware
-cost is not estimated. The participant should review [the answer samples](MODEL_REVIEW.md)
-before the M3 quality gate can be marked complete.
+cost is not estimated. Participant review notes for [the answer samples](MODEL_REVIEW.md)
+are recorded, but do not complete the M3 quality gate.
 
 The 2026-10-17 run passed the automated term/path/abstention rubric in 10/10
 cases, with 10/10 structurally valid envelopes and 10 selected claims with
@@ -320,7 +320,7 @@ valid evidence IDs. It used 20 local model calls and reported 15,193 input and
 658 output tokens. Per-question latency was 947–19,227 ms (median 2,359 ms;
 nearest-rank p95 19,227 ms). One three-hop case accounts for the long tail.
 These figures describe this single run and this GPU/CPU setup only. Semantic
-participant review is still pending.
+participant review was recorded; broader semantic evaluation is still open.
 
 ## 7. What is explicitly NOT claimed yet
 
@@ -329,7 +329,7 @@ participant review is still pending.
   measurements, not a representative workload or cost estimate.
 - The Markdown adapter is a bounded local snapshot reader, not a live Slack,
   ticketing, or document-service connector.
-- Participant semantic review and keyword/RAG/no-graph LLM baselines remain open.
+- A participant reviewed the ten synthetic answer samples; broader semantic evaluation and keyword/RAG/no-graph LLM baselines remain open.
 - The demo's pass/fail checks (`cmd/tron/demo.go`) prove that operations
   *answer*, not that the answers are *correct vs a baseline*.
 

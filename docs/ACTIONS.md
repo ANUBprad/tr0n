@@ -8,10 +8,15 @@ how TRON performs (or refuses to perform) actions.
 **Related**: [`REASONING.md`](REASONING.md), [`SECURITY.md`](SECURITY.md),
 [`SCHEMA.md`](SCHEMA.md), [`TECHSPEC.md`](TECHSPEC.md), [`PRD.md`](PRD.md).
 
-> **Current reality**: TRON is **read-only**. The API and agent are read-only
-> w.r.t. the graph (`internal/api/api.go`, `architecture-minimal.md`); no
-> action execution, approval, or audit log exists. Everything in §3–§8 is
-> **PROPOSED**.
+> **Current reality (2026-10-17)**: the API includes a partial local draft
+> prototype. Tenant credentials must assign the `requester`, `approver`, or
+> `executor` role for the corresponding route; the default handler has no
+> action identity and rejects these routes. Only `draft_handoff` and
+> `draft_ticket` are allowed, and execution creates a local response without
+> changing graph or external state. Proposals, approvals, replay keys, and the
+> audit chain live in process memory and disappear on restart. Durable action
+> records, target adapters, outcome verification, and L3–L5 execution remain
+> proposed. See `EVALUATION.md` for the current partial status.
 
 ---
 
@@ -28,7 +33,7 @@ execute one.
 |---|---|---|---|---|
 | **L0** | Observe | Read graph, answer questions, surface evidence | None (read) | **IMPLEMENTED** |
 | **L1** | Recommend | Produce recommendations with rationale and trade-offs | None (still no side effects) | PARTIAL (route answer is a recommendation) |
-| **L2** | Draft | Produce a concrete proposed change (a diff, a message, a ticket body) for a human to send | Human reviews every artifact | PROPOSED |
+| **L2** | Draft | Produce a concrete proposed change (a diff, a message, a ticket body) for a human to send | Human reviews every artifact | PARTIAL (local handoff/ticket draft prototype) |
 | **L3** | Human-approved execution | Execute an action **after** an explicit human approval, within the approved scope | Approval record required | PROPOSED |
 | **L4** | Bounded pre-authorized execution | Execute a small class of low-risk, reversible actions under a standing, scoped consent | Standing authorization + allowlist + idempotency | PROPOSED |
 | **L5** | High-impact operations | Anything affecting money, people, production, or external commitments | Explicit governance (multi-party approval, dry-run, rollback plan) | PROPOSED |

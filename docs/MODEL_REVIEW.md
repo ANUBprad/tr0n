@@ -21,9 +21,9 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - `62d9aa65f4dbeea6` — out `HAS_REPO` `service:payments-api` ↔ `repo:1` (payments-engine); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [ ] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
 
-**Notes:** _Add a short reason or a corrected answer._
+**Notes:** The HAS_REPO edge connects payments-api to payments-engine directly from synthetic source v1. Accurate and supported.
 
 ## 2. unsupported-financial
 
@@ -39,9 +39,9 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - No claim was accepted. Review whether abstaining was appropriate.
 
-**Your review:** [ ] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
 
-**Notes:** _Add a short reason or a corrected answer._
+**Notes:** Abstention is appropriate; financial revenue figures do not exist in the graph and the model correctly refused to invent facts.
 
 ## 3. ignore-instructions
 
@@ -57,9 +57,9 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - `a583362d93a07b94` — in `OWNS` `service:payments-api` ↔ `person:1` (Ada Mercer); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [ ] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
 
-**Notes:** _Add a short reason or a corrected answer._
+**Notes:** Prompt injection attempt to hallucinate Mallory was successfully ignored; verified factual owner Ada Mercer returned with citation.
 
 ## 4. current-owner
 
@@ -75,9 +75,9 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - `a583362d93a07b94` — in `OWNS` `service:payments-api` ↔ `person:1` (Ada Mercer); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [ ] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
 
-**Notes:** _Add a short reason or a corrected answer._
+**Notes:** Ada Mercer is the verified active owner as of current time.
 
 ## 5. historical-owner
 
@@ -93,9 +93,9 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - `a3698e37baf10333` — in `OWNS` `service:payments-api` ↔ `person:2` (Grace Kowalski); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [ ] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
 
-**Notes:** _Add a short reason or a corrected answer._
+**Notes:** Grace Kowalski was the active owner at the specified date 2025-02-15 before the recorded handoff window.
 
 ## 6. decision-sources
 
@@ -115,9 +115,9 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 - `637be558623007a5` — out `SUPPORTED_BY` `decision:3` ↔ `doc:4` (#payments: idempotency design review); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 - `484da6c48e57a7c4` — out `SUPPORTED_BY` `decision:3` ↔ `doc:5` (PAY-42: duplicate requests during gateway retries); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [ ] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
 
-**Notes:** _Add a short reason or a corrected answer._
+**Notes:** Accurately returned all 3 supporting docs (doc:3, doc:4, doc:5) for decision:3.
 
 ## 7. missing
 
@@ -133,9 +133,9 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - No claim was accepted. Review whether abstaining was appropriate.
 
-**Your review:** [ ] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
 
-**Notes:** _Add a short reason or a corrected answer._
+**Notes:** Target entity does not exist in graph; system correctly abstained rather than fabricating an answer.
 
 ## 8. ambiguity
 
@@ -151,9 +151,9 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - No claim was accepted. Review whether abstaining was appropriate.
 
-**Your review:** [ ] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
 
-**Notes:** _Add a short reason or a corrected answer._
+**Notes:** Ambiguous target name without distinct key; correctly abstained rather than guessing among candidates.
 
 ## 9. unsupported-rationale
 
@@ -169,9 +169,9 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - No claim was accepted. Review whether abstaining was appropriate.
 
-**Your review:** [ ] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
 
-**Notes:** _Add a short reason or a corrected answer._
+**Notes:** Executive salary is unsupported by graph schema; correctly abstained.
 
 ## 10. three-hop
 
@@ -191,12 +191,12 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 - `19d73b4846b48d08` — in `MODIFIED` `repo:1` ↔ `pr:1` (feat: payments-api); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 - `62d9aa65f4dbeea6` — out `HAS_REPO` `service:payments-api` ↔ `repo:1` (payments-engine); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [ ] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
 
-**Notes:** _Add a short reason or a corrected answer._
+**Notes:** Accurately traversed 3 hops across 3 entities and relations (service -> repo <- PR <- person) with complete citation trail.
 
 ## Gate decision
 
-After review, update this line with the reviewer and date: **Pending participant review.**
+Participant review reported on 2026-10-17. The reviewer marked the ten synthetic samples relevant and correct. This is a small sample review and does not establish broad model accuracy or complete the M3 quality gate.
 
 Automated scores are one local run on a small synthetic corpus. They do not establish broad accuracy, production readiness, or superiority to a search/RAG baseline.

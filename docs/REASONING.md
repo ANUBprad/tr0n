@@ -13,9 +13,10 @@ operation boundary + agent seam) and [`architecture-minimal.md`](architecture-mi
 > composers coexist with an optional local Ollama adapter for bounded retrieval
 > and relationship-fact selection (`internal/agent/ollama.go`,
 > `/v1/grounded`). Citations are structurally checked and facts rendered by the
-> server; semantic entailment is not established. Participant review and
-> baselines remain open. Option comparison, planning, authorization, and
-> execution are **PROPOSED**. Contradiction detection ships as `FindConflicts`
+> server; semantic entailment is not established. Participant review of ten
+> synthetic samples is recorded; broad evaluation and comparative baselines
+> remain open. Caller-scored planning, tenant-role-gated local draft actions,
+> and snapshot alert rules are partial prototypes. Contradiction detection ships as `FindConflicts`
 > (E6 v1), bounded context assembly as `AssembleEvidence`, and the
 > `GroundedAnswer` envelope proves structural linkage only.
 

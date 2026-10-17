@@ -194,7 +194,7 @@ Integration tests use dedicated `tron_*_test` graphs and remove them afterwards.
 
 ## Scope and limitations
 
-**Implemented:** the five graph-backed workflows, source drill-down, historical ownership, conflict detection, explicit structured source refresh, ownership updates, and downloadable handoff drafts.
+**Implemented:** the five graph-backed workflows, source drill-down, historical ownership, conflict detection, explicit structured source refresh, ownership updates, a caller-scored decision calculator (`tron plan`), local draft actions with process-local replay (`internal/actions`), snapshot risk alerts (`tron alerts`), and downloadable handoff drafts.
 
 **Boundaries of this submission:**
 
@@ -204,7 +204,8 @@ Integration tests use dedicated `tron_*_test` graphs and remove them afterwards.
 - Historical expertise filters ownership only; other activity scores use recorded activity and current recency. It is not a complete historical expertise snapshot.
 - The app requires one writer per graph. Optional bearer credentials select tenant graphs, but per-document ACLs, managed identity, and production access controls are not implemented.
 - Source refresh retains the latest document body; ownership updates preserve relationship history. These are different retention guarantees.
-- Broad benchmark coverage and comparison baselines remain incomplete. See [EVALUATION.md](docs/EVALUATION.md) for known identity ambiguity and evaluation status.
+- The participant-reviewed Q&A samples are documented in [MODEL_REVIEW.md](docs/MODEL_REVIEW.md). Comparative search/RAG baselines have not been run; the small synthetic model evaluation does not establish broad accuracy.
+- Decision planning calculates rankings from caller-supplied scores and labels that input as unverified. Alerts are snapshot graph rules without a measured precision/recall corpus. The action prototype generates local drafts only; its in-memory records are not durable and it has no external execution adapter.
 
 ## Submission checklist
 

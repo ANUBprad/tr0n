@@ -1,4 +1,4 @@
-> **Current competition build (2026-10-17):** See `TRACKER.md` and the root README for implemented behavior. In addition to deterministic workflows and explicit source imports, the build includes a bounded local Ollama retrieval-and-citation path, executable evaluation corpus, Markdown snapshot sync, reviewed identity aliases, and credential-selected tenant graphs. Participant answer review and baseline comparisons remain open; live service connectors and autonomous execution remain future work.
+> **Current competition build (2026-10-17):** See `TRACKER.md` and the root README for implemented behavior. In addition to deterministic workflows and explicit source imports, the build includes a bounded local Ollama retrieval-and-citation path, executable evaluation corpus, Markdown snapshot sync, reviewed identity aliases, and credential-selected tenant graphs. Participant review of ten synthetic answer samples is recorded; broad evaluation and comparative baselines remain open. Live service connectors and autonomous execution remain future work.
 
 # TRON — Implementation Roadmap
 
@@ -26,12 +26,16 @@ implementation to the target organizational brain.
 - **M2 — Partial:** structured JSON imports and explicit Markdown snapshot
   synchronization with retry/cursor/deletion behavior are verified. No live
   private-service connector or permission propagation is included.
-- **M3 — Partial:** local Ollama retrieval, citation validation, abstention,
-  truncation reporting, and a small synthetic evaluation run. The participant
-  answer review and baseline comparisons remain open; structural citations do
-  not prove semantic entailment.
-- **M4–M6 — Not started:** decision planning, approved action execution, and
-  proactive alerts remain behind the M3 quality/review gate.
+- **M3 — Partial:** local Ollama retrieval, structural citation checks, abstention,
+  truncation reporting, and a 10-case synthetic run exist. Participant review is
+  recorded, while broader entailment evaluation and real comparative baselines remain open.
+- **M4 — Partial:** the calculator validates and ranks caller-scored options with
+  Pareto and ±10% single-weight sensitivity calculations; scores are not graph-sourced.
+- **M5 — Partial:** authenticated tenant roles can request local handoff/ticket
+  drafts. Replay and audit state are in memory; no durable log, graph write,
+  external action adapter, or verified outcome exists. State-changing actions are denied.
+- **M6 — Partial:** snapshot graph rules report candidate ownership conflicts,
+  unowned services, and single-expert risks. Alert quality is not measured against labels.
 - **M7 — Partial:** optional credential-selected tenant graphs and local
   loopback defaults exist; this is not production readiness.
 
@@ -198,7 +202,7 @@ superseded status statements.
   citations, abstention, and contradiction handling.
 - **Reuse**: agent loop + `Decide` seam, the deterministic graph ops (incl. `graph.AssembleEvidence`), `Answer.Validate`.
 - **Implemented since initial roadmap**: local Ollama `Decide` adapter, bounded connected retrieval, `/v1/grounded`, structural citation validation, server-rendered relationship facts, explicit abstention/truncation, and a ten-case synthetic evaluation corpus. The deterministic `/v1/ask` endpoint remains available.
-- **Gaps**: participant semantic review; keyword, text-RAG, and no-graph baselines; broader adversarial and entailment evaluation; permission-aware per-document filtering and relevance/recency ranking. E3 remains **PARTIAL** until the human review and broader evaluation are complete; structural citation checks do not prove entailment.
+- **Gaps**: keyword, text-RAG, and no-graph baselines; broader adversarial and entailment evaluation; permission-aware per-document filtering and relevance/recency ranking. E3 remains **PARTIAL**; the recorded small-sample human review and structural citation checks do not prove entailment.
 - **Dependencies**: M2 (real data) and the ADR for the provider (RULES §4).
 - **Files**: `internal/agent` (adapter), **new** `internal/reason`;
   `internal/api`, `internal/ui` (open questions).

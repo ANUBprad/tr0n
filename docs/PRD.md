@@ -70,8 +70,8 @@ is enforced, not aspirational — the deterministic core
 > **Current competition build (2026-10-17):** The deterministic five-workflow
 > app, structured import and Markdown snapshots, bounded local Ollama retrieval,
 > citation validation, and tenant graph selection exist. The optional model path
-> is evaluated on a small synthetic corpus; semantic participant review and
-> baseline comparisons are still open. See [`TRACKER.md`](TRACKER.md) and
+> is evaluated on a small synthetic corpus; review of ten samples is recorded,
+> while broad semantic evaluation and comparative baselines remain open. See [`TRACKER.md`](TRACKER.md) and
 > [`EVALUATION.md`](EVALUATION.md). The milestones below retain the original
 > product horizon and are not a claim that all of it has shipped.
 

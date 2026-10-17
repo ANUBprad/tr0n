@@ -17,6 +17,7 @@ import (
 	"github.com/ANUBprad/tr0n/internal/evaluation"
 	"github.com/ANUBprad/tr0n/internal/graph"
 	"github.com/ANUBprad/tr0n/internal/ingest"
+	"github.com/ANUBprad/tr0n/internal/rules"
 	"github.com/ANUBprad/tr0n/internal/seed"
 	"github.com/ANUBprad/tr0n/internal/ui"
 )
@@ -74,6 +75,35 @@ func main() {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		enc.Encode(report)
+
+	case len(os.Args) >= 2 && os.Args[1] == "plan":
+		options := []rules.Option{
+			{ID: "opt:redis", Name: "Redis", Description: "In-memory key-value store with sub-millisecond latency", CostScore: 0.2, RiskScore: 0.2, PerfScore: 0.9, EaseScore: 0.8},
+			{ID: "opt:kafka", Name: "Kafka Compacted Topic", Description: "Distributed streaming log with persistence", CostScore: 0.6, RiskScore: 0.5, PerfScore: 0.7, EaseScore: 0.4},
+			{ID: "opt:postgres", Name: "Postgres Idempotency Table", Description: "Relational database with transactional unique constraint", CostScore: 0.4, RiskScore: 0.3, PerfScore: 0.5, EaseScore: 0.6},
+		}
+		contextName := "Payment idempotency store selection"
+		if len(os.Args) > 2 {
+			contextName = os.Args[2]
+		}
+		res, err := rules.EvaluatePlan(contextName, options, rules.DefaultWeights())
+		if err != nil {
+			fatal(err)
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(res)
+
+	case len(os.Args) == 2 && os.Args[1] == "alerts":
+		c := connect(addr)
+		defer c.Close()
+		alerts, err := rules.DetectAlerts(c)
+		if err != nil {
+			fatal(err)
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(map[string]interface{}{"alerts": alerts, "count": len(alerts)})
 
 	case len(os.Args) == 2 && os.Args[1] == "constraints":
 		c := connect(addr)
@@ -229,6 +259,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       tron owner-set <service-key> <owner-key> <source-ref>  record a sourced ownership change")
 		fmt.Fprintln(os.Stderr, "       tron sync <manifest.json>  synchronize an explicit Markdown source snapshot")
 		fmt.Fprintln(os.Stderr, "       tron eval-model    evaluate local Ollama on the disposable labeled corpus")
+		fmt.Fprintln(os.Stderr, "       tron plan [context] evaluate candidate options with Pareto frontier and trade-offs")
+		fmt.Fprintln(os.Stderr, "       tron alerts        detect proactive risks (SPOF, unowned, conflicts)")
 		fmt.Fprintln(os.Stderr, "       tron constraints   create and wait for per-label database uniqueness")
 		fmt.Fprintln(os.Stderr, "       tron identity-link <alias> <canonical> <source>  record a reviewed mapping")
 		fmt.Fprintln(os.Stderr, "       tron import <file.json>  upsert explicitly mapped source records")

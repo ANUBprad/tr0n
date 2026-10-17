@@ -2,21 +2,15 @@
 
 ## Current release checks — 2026-10-17
 
-- Runtime revision: `c31b3e3` on `submission/main` (`Shashwat-911/tr0n-shashwat`); this verification pass adds documentation corrections only.
-- `go test -race -count=1 -p 1 ./...`: all packages pass in a Go 1.26.5 Linux container connected to the running FalkorDB service.
-- `go vet ./...` and `node --check internal/ui/app.js`: pass.
-- `docker compose run --rm app demo`: 7/7 graph-backed checks pass.
-- `GET /v1/health`: `{"status":"ok"}`; app, FalkorDB, and local Ollama containers are running.
-- `GET /v1/model` reports the configured `qwen3:4b-instruct`; a live `POST /v1/grounded` ownership question returned the recorded owner and a cited relationship fact.
-- The local Qwen 3 4B model run and its limitations are recorded in
-  [`EVALUATION.md`](EVALUATION.md); participant semantic review remains pending
-  in [`MODEL_REVIEW.md`](MODEL_REVIEW.md).
-- The prior UI walkthrough is a captioned sequence of screenshots. It does not
-  demonstrate the newer optional Ollama answering flow.
-
-The race-enabled full suite, static checks, demo, and health probe were rerun on
-this machine for this checkpoint. Model evaluation metrics are from the dated run
-in `EVALUATION.md`, not a fresh rerun in this verification pass.
+- Working branch: `submission/company-brain`, based on `submission/main`; see git history for the published revision.
+- `go test -count=1 ./...`: all packages pass against the running local FalkorDB service.
+- `go test -race -count=1 -p 1 ./...`: all packages pass in Go 1.26.5 Alpine with `TRON_FALKOR_ADDR=falkordb:6379`.
+- `go vet ./...`, `go build ./cmd/tron`, and `node --check internal/ui/app.js`: pass.
+- `docker compose run --build --rm app demo`: rebuilt image passes 7/7 graph-backed checks.
+- Action role checks cover unauthenticated and reader denial, server-owned requester identity, and role separation. State-changing action types are denied; local draft replay/audit state is in memory.
+- Planning checks cover finite weights/scores, overflow rejection, Pareto ranking, and independent ±10% weight perturbations. Plan options remain caller-scored inputs.
+- The local Qwen 3 4B model run and its limitations are recorded in [`EVALUATION.md`](EVALUATION.md); participant review of ten synthetic samples is recorded in [`MODEL_REVIEW.md`](MODEL_REVIEW.md).
+- The prior UI walkthrough is a captioned sequence of screenshots. It does not demonstrate the newer optional Ollama answering flow.
 
 ## Preserved history
 

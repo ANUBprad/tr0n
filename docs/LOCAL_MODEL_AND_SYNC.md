@@ -114,7 +114,8 @@ secrets, trusted reverse-proxy settings, retention/backups, and operational revi
 ## Remaining release gates
 
 M3 still needs satisfactory measured model results, broader adversarial coverage, and
-participant semantic review. Keyword, text-RAG, and no-graph tool-LLM baselines have not
+broader participant semantic evaluation. Review of the ten current samples is recorded.
+Keyword, text-RAG, and no-graph tool-LLM baselines have not
 been established. M4 planning, M5 approved execution, and M6 proactive alerts remain
 behind that gate. Tenant authentication is only part of M7, not a production readiness
 claim. Do not describe these future milestones as completed in the submission.
