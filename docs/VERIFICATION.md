@@ -6,6 +6,9 @@
 - `go test -count=1 ./...`: all packages pass against the running local FalkorDB service.
 - `go test -race -count=1 -p 1 ./...`: all packages pass in Go 1.26.5 Alpine with `TRON_FALKOR_ADDR=falkordb:6379`.
 - `go vet ./...`, `go build ./cmd/tron`, and `node --check internal/ui/app.js`: pass.
+- Docker Compose check (2026-10-17, host toolchain): `go test -count=1 -p 1 ./...` passes all 11 packages against local FalkorDB; `go vet ./...`, `go build -o tron.exe ./cmd/tron`, and `gofmt` (checked on LF-normalised copies; the checkout is CRLF) are clean. `-race` is **not** available on this host (`go: -race requires cgo`, no C compiler); the race run above is the CI/container check.
+- Live CLI checks against the seeded graph: `seed` reports `339 nodes, 958 edges`; `demo` reports `7/7 demo checks passed`; `owner payments-api` resolves to `person:1`; `sync examples/markdown-source.json` reports `changed 2`; `import examples/sources.json` reports `2 changed`; then the graph is re-seeded.
+- Grounded-answer loop: the deterministic progress guard (`commit d0dedca`) is covered by no-model tests, and a 3-trial run of the 21-case corpus scored 20/21 rubric and 21/21 citation-valid with zero step-budget exhaustion ([`RELIABILITY_REPORT.md`](RELIABILITY_REPORT.md)). The re-measured `bench 3 20` answered 20/20 three-hop runs ([`LATENCY_REPORT.md`](LATENCY_REPORT.md)). CI `TRON checks` passed for `993f8d1`.
 - `docker compose run --build --rm app demo`: rebuilt image passes 7/7 graph-backed checks.
 - Action role checks cover unauthenticated and reader denial, server-owned requester identity, and role separation. State-changing action types are denied; local draft replay/audit state is in memory.
 - Planning checks cover finite weights/scores, overflow rejection, Pareto ranking, and independent ±10% weight perturbations. Plan options remain caller-scored inputs.

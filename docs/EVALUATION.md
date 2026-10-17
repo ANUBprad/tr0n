@@ -403,8 +403,9 @@ sampling comparison**. Per-case changes (rubric): `ignore-instructions`,
 repeats a retrieval until the step budget is exhausted); both also failed in the
 earlier 20-case review, and `service-repository` passing here only with thinking
 on shows the outcome is run-dependent — neither is read as a regression of the
-`think` change. `three-hop` stays unreliable across repeated runs (5/20 answered
-in the 20-run benchmark); the single pass here is not a reliability claim.
+`think` change. In the pre-guard benchmark `three-hop` answered in only 5/20 runs
+(§6.2 supersedes that measurement). §6.2 records what changed when the shared loop
+gained a deterministic progress guard.
 
 `adversarial-fabricate-person` is instructive: with thinking off the model
 followed a real relationship but answered with a repository instead of the owner
@@ -415,6 +416,59 @@ entailment.
 
 No human semantic review was performed for this expanded run; the counts above
 are automated rubric results only.
+
+### 6.2 Reliability trials after the progress guard — 2026-10-17
+
+The §6.1 run exposed two loop defects, both fixed in the shared layer
+(`internal/agent/grounded.go`, commit `d0dedca`). (1) A model that repeated one
+retrieval (for example `service:payments-api` with `OWNS` instead of `HAS_REPO`)
+could consume the six-step budget and surface `provider_error`. (2) An author
+question whose sources are reached through `SUPPORTED_BY` was redirected to the
+service→repository path, returned an empty context, and abstained, because
+`nextAuthorRetrieval` only knew `HAS_REPO`/`MODIFIED`. The fix detects a step that
+returns no new evidence, and then either continues along observed edges (an
+author question now follows `SUPPORTED_BY` → document → `AUTHORED` as well as
+`HAS_REPO` → `MODIFIED` → `AUTHORED`) or broadens the resolved entity to its full
+neighborhood; when nothing new remains it abstains with a warning. A repeat is
+detected by resolved entity key plus canonical relation scope, so a different
+JSON field order is not new evidence. Recovery is bounded, and a no-progress
+repeat is never permission to answer.
+
+Method: **3 full trials of all 21 cases** with the installed `qwen3:4b` tag and
+the thinking trace disabled (`"think": false`), commit `993f8d1`, the synthetic
+seed plus the adversarial fixtures, `temperature=0`, `seed=42`. Raw per-trial
+results and the per-case aggregate are in
+`artifacts/evaluation/reliability-trials-2026-10-17.json`; the
+[reliability report](RELIABILITY_REPORT.md) carries the per-case outcomes and the
+latency distributions.
+
+```powershell
+$env:TRON_OLLAMA_URL="http://localhost:11434"; $env:TRON_OLLAMA_MODEL="qwen3:4b"
+$env:TRON_EVAL_TRIALS="3"; $env:TRON_EVAL_COMMIT=(git rev-parse HEAD)
+go build -o tron.exe ./cmd/tron
+cmd /c ".\tron.exe eval-model > artifacts\evaluation\reliability-trials-2026-10-17.json"
+```
+
+| Trial | rubric pass | citation-valid | answered | abstained | invalid | timeout | error | no-progress retrievals | guard recoveries | step budget exhausted |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 20 / 21 | 21 / 21 | 13 | 8 | 0 | 0 | 0 | 10 | 7 | 0 |
+| 2 | 20 / 21 | 21 / 21 | 13 | 8 | 0 | 0 | 0 | 10 | 7 | 0 |
+| 3 | 20 / 21 | 21 / 21 | 13 | 8 | 0 | 0 | 0 | 10 | 7 | 0 |
+
+All three trials are identical at this granularity: no `provider_error`, no
+timeout, no invalid answer, and every one of the eight abstentions is an
+*expected* abstention (missing, ambiguous, unsupported, conflicting, or
+out-of-window). The one rubric miss, in all three trials, is
+`decision-source-authors`: it now **answers with a structurally valid citation**
+and the required `SUPPORTED_BY` and `AUTHORED` relations are both in context, but
+the model cites only the retrieved author fact, so the expected term
+`"supported"` is absent. The loop defect is fixed; the residual is the 4B model's
+phrasing, and it is not counted as a pass.
+
+These three trials raise the automated rubric pass from 18/21 (§6.1) to 20/21 and
+remove the two loop failures. They are **three repeats of a 21-case synthetic
+corpus, not a statistically conclusive sample**, and they are **automated rubric
+counts, not human-reviewed semantic accuracy**.
 
 ## 7. What is explicitly NOT claimed yet
 

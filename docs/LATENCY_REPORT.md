@@ -139,27 +139,72 @@ same safe text and empty claims for `abstained` and `provider_error`
 (`internal/agent/grounded.go`), so both are a refusal to answer, not a wrong
 answer or a crash.
 
+## Guarded — after the progress fix
+
+Change: a deterministic progress guard in the shared agent loop
+(`internal/agent/grounded.go`, commit `d0dedca`). A step makes progress only when
+it returns evidence not seen before; a repeated scope (compared by resolved
+entity key plus canonical, sorted relation scope), a non-`ok` result, or a tool
+error does not. On a stall the guard advances along observed edges — an author
+question now follows `SUPPORTED_BY` → document → `AUTHORED` as well as
+`HAS_REPO` → `MODIFIED` → `AUTHORED` — or broadens the resolved entity to its full
+neighborhood once, and abstains with a warning when nothing new remains. Bounded
+recovery; no graph query, evidence contract, citation rule, or prompt changed.
+Deterministic regression tests: `TestGroundedProgressGuard` (scripted model, no
+Ollama), `TestProgressGuardPlan`, `TestAuthorTraversalUsesOnlyReturnedNodes`.
+
+Raw artifact: `artifacts/benchmarks/three-hop-latency-guarded.json`.
+
+Run window `2026-10-17T17:16:31Z`–`2026-10-17T17:22:58Z`. Model preloaded: yes.
+n = 20 measured, 0 transport errors, **20/20 answered** (every run produced a
+citation-valid answer). Every run converged in **4 model decisions** (down from
+6): the model retrieves `HAS_REPO` once, repeats it once, and the guard then
+completes `MODIFIED` → `AUTHORED` deterministically before the model selects the
+`AUTHORED` fact.
+
+| Phase | min | p50 | p95 | max |
+|---|---|---|---|---|
+| end-to-end (`latency_ms`) | 13,098 | 15,858 | 20,180 | 22,268 |
+| `graph_ms` | 106 | 453 | 2,348 | 2,549 |
+| `model_ms` | 12,865 | 14,943 | 19,402 | 21,548 |
+| `validate_ms` | 0 | 0 | 0 | 0 |
+| `render_ms` | 0 | 0 | 0 | 0 |
+
+Token usage: 80 model calls, 92,680 input tokens, **5,840 output tokens**
+(**73 output tokens per call**).
+
+The comparison that matters is **among answers, not across the whole pool**: in
+the candidate run the 15 `provider_error`s failed in ~9.6 s (6 steps, no answer),
+so its pool p50 of 9,571 ms measures a fast *failure*. The candidate's five
+successful answers took 16,136 / 16,639 / 17,056 / 17,338 / 22,286 ms (median
+17,056 ms). The guarded run answers **every** time at a median of 15,858 ms —
+faster than the candidate's successful median, and with a lower p95, because the
+guard reaches `AUTHORED` in 4 decisions instead of 6.
+
 ## Before / after
 
-| Metric | Baseline (thinking on) | Candidate (thinking off) | Change |
-|---|---|---|---|
-| end-to-end p50 | 63,482 ms | 9,571 ms | **6.6× faster** |
-| end-to-end p95 | 93,187 ms | 22,286 ms | 4.2× faster |
-| end-to-end max | 102,236 ms | 30,824 ms | 3.3× faster |
-| `model_ms` p50 | 63,447 ms | 9,227 ms | **6.9× faster** |
-| `graph_ms` p50 | 87 ms | 226 ms | +139 ms (still <1% of total) |
-| output tokens / call | 732 | 41 | **17.9× fewer** |
-| model calls / run | 2 | 6 | more, but tiny |
-| citation-valid answers | 0 / 20 | 5 / 20 | **+5** |
-| safe non-answers | 20 / 20 | 15 / 20 | **−5** |
-| transport errors | 0 | 0 | same |
+Three measured configurations, same host, same model tag, same question, same
+n = 20. Raw artifacts: `three-hop-latency-baseline.json` (thinking on),
+`three-hop-latency-optimized.json` (thinking off), `three-hop-latency-guarded.json`
+(thinking off + progress guard).
 
-The candidate is retained. It is **not slower, not less accurate, and not less
-citation-valid** than the baseline on this question: median latency falls
-~6.6×, and the rubric pass count rises from 0/20 to 5/20 while the safe
-non-answer rate falls from 20/20 to 15/20. The remaining 15/20 do not produce a
-wrong or ungrounded answer; they produce the same safe refusal the baseline
-always produced.
+| Metric | Baseline (thinking on) | Candidate (thinking off) | Guarded (thinking off + guard) |
+|---|---|---|---|
+| answered / citation-valid | 0 / 20 | 5 / 20 | **20 / 20** |
+| safe non-answers | 20 / 20 | 15 / 20 (`provider_error`) | **0 / 20** |
+| transport errors | 0 | 0 | 0 |
+| model decisions / run | 2 | 6 | 4 |
+| end-to-end p50 (all runs) | 63,482 ms | 9,571 ms | 15,858 ms |
+| end-to-end p95 (all runs) | 93,187 ms | 22,286 ms | 20,180 ms |
+| median latency of **answers** | n/a (0 answers) | 17,056 ms | 15,858 ms |
+| `graph_ms` p50 | 87 ms | 226 ms | 453 ms |
+| output tokens / call | 732 | 41 | 73 |
+
+Reading the table: thinking-off is what makes the question answerable at all, and
+the guard is what makes it answerable **every time**. Relative to the candidate,
+the guard turns 15/20 failures into answers, cuts the successful-answer median
+7%, and lowers p95 — the pool p50 rises only because there are no longer any fast
+failures to pull it down.
 
 ## Corpus accuracy cross-check
 
@@ -172,25 +217,40 @@ details in [EVALUATION.md](EVALUATION.md) §6.1):
 |---|---|---|---|---|---|
 | thinking on | 16 / 21 | 17 / 21 | 8 | 9 | 3 (plus 1 timeout) |
 | thinking off | **18 / 21** | **20 / 21** | 11 | 9 | 1 |
+| thinking off + guard, 3 trials | **20 / 21 each** | **21 / 21 each** | 13 | 8 | 0 (no timeout, no error) |
 
 Four cases flipped fail→pass (`ignore-instructions`, `decision-sources`,
 `three-hop`, `cross-entity-citation`) and two flipped pass→fail
-(`service-repository`, `adversarial-fabricate-person`). `decision-source-authors`
-failed in both. The model is not deterministic, so these are two single runs:
-`service-repository` failed in the earlier review of both configurations and
-passed here only with thinking on, so its pass→fail flip is run variance, not a
-stable regression. The `adversarial-fabricate-person` flip is a semantic error
-the rubric caught (the model answered a repository when asked for the owner), not
-an ungrounded or citation-invalid answer.
+(`service-repository`, `adversarial-fabricate-person`) between the two single
+runs. `decision-source-authors` failed in both. The model is not deterministic,
+so these are two single runs: `service-repository` failed in the earlier review
+of both configurations and passed here only with thinking on, so its pass→fail
+flip is run variance, not a stable regression. The `adversarial-fabricate-person`
+flip is a semantic error the rubric caught (the model answered a repository when
+asked for the owner), not an ungrounded or citation-invalid answer.
+
+The guard removes both loop failures seen in the single runs (`service-repository`
+and `three-hop` now pass in all three trials). The one persistent rubric miss
+after the guard is `decision-source-authors` — answered, citation-valid, and with
+both required relations in context, but the model cites only the author fact, so
+the term `"supported"` is absent. Full per-case outcomes are in
+[RELIABILITY_REPORT.md](RELIABILITY_REPORT.md).
 
 ## Interpretation and limits
 
-- The change is retained **because it was measured on the same hardware, the
-  same model tag, the same question, and the same n**, and because it did not
-  reduce answer quality: it cut median model time ~6.9×, lowered the safe
-  non-answer rate from 20/20 to 15/20, and produced 5 citation-valid answers
-  where the baseline produced none. It does **not** make the three-hop question
-  reliable on this 4B model; that remains a documented limitation.
+- **Thinking off** is retained: measured on the same hardware, model tag,
+  question, and n, it cut median model time ~6.9×, lowered the safe non-answer
+  rate from 20/20 to 15/20, and produced 5 citation-valid answers where the
+  baseline produced none.
+- **The progress guard** is retained: it turns the candidate's 15/20
+  `provider_error`s into 20/20 citation-valid answers, cuts the successful-answer
+  median from 17,056 ms to 15,858 ms, and lowers p95 from 22,286 ms to 20,180 ms.
+  The candidate's lower *pool* p50 (9,571 ms) was an artifact of fast failures;
+  among answers, the guarded run is faster.
+- Neither change makes the question reliable by *model planning* alone: the guard
+  completes the traversal deterministically, so the reliability comes from the
+  deterministic layer, not from the 4B model's planning. That is the documented
+  limitation.
 - This is **not** a claim that the graph is fast in production, nor that the
   model is accurate in general. It is a single-question, single-host result.
 - `validate_ms` and `render_ms` are 0 ms at this resolution (they are

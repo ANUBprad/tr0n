@@ -1,0 +1,456 @@
+{
+  "command": "go run ./cmd/tron bench [warmup] [iterations]",
+  "case_id": "three-hop",
+  "question": "Find an author of a pull request that modified this service's repository. Follow HAS_REPO to the repository, incoming MODIFIED to a PullRequest, then incoming AUTHORED to its Person. State who authored which pull request.",
+  "target": "service:payments-api",
+  "model": "qwen3:4b",
+  "graph": "tron_bench",
+  "warmup_iterations": 3,
+  "measured_iterations": 20,
+  "model_preloaded_before_run": true,
+  "graph_reset_before_run": true,
+  "graph_reset_between_runs": false,
+  "cold_start_ms": 29568,
+  "started": "2026-10-17T17:16:31Z",
+  "ended": "2026-10-17T17:22:58Z",
+  "warmups": [
+    {
+      "index": 0,
+      "status": "answered",
+      "latency_ms": 29568,
+      "graph_ms": 372,
+      "model_ms": 29017,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 1,
+      "status": "answered",
+      "latency_ms": 15371,
+      "graph_ms": 61,
+      "model_ms": 15308,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 2,
+      "status": "answered",
+      "latency_ms": 15090,
+      "graph_ms": 202,
+      "model_ms": 14886,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    }
+  ],
+  "runs": [
+    {
+      "index": 0,
+      "status": "answered",
+      "latency_ms": 16954,
+      "graph_ms": 289,
+      "model_ms": 16661,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 1,
+      "status": "answered",
+      "latency_ms": 19352,
+      "graph_ms": 1021,
+      "model_ms": 18326,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 2,
+      "status": "answered",
+      "latency_ms": 22268,
+      "graph_ms": 716,
+      "model_ms": 21548,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 3,
+      "status": "answered",
+      "latency_ms": 20180,
+      "graph_ms": 773,
+      "model_ms": 19402,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 4,
+      "status": "answered",
+      "latency_ms": 15897,
+      "graph_ms": 271,
+      "model_ms": 15623,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 5,
+      "status": "answered",
+      "latency_ms": 15465,
+      "graph_ms": 116,
+      "model_ms": 15344,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 6,
+      "status": "answered",
+      "latency_ms": 19113,
+      "graph_ms": 453,
+      "model_ms": 18657,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 7,
+      "status": "answered",
+      "latency_ms": 14336,
+      "graph_ms": 697,
+      "model_ms": 13634,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 8,
+      "status": "answered",
+      "latency_ms": 14197,
+      "graph_ms": 360,
+      "model_ms": 13833,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 9,
+      "status": "answered",
+      "latency_ms": 19647,
+      "graph_ms": 2348,
+      "model_ms": 17293,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 10,
+      "status": "answered",
+      "latency_ms": 15858,
+      "graph_ms": 912,
+      "model_ms": 14943,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 11,
+      "status": "answered",
+      "latency_ms": 13098,
+      "graph_ms": 230,
+      "model_ms": 12865,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 12,
+      "status": "answered",
+      "latency_ms": 17498,
+      "graph_ms": 2549,
+      "model_ms": 14946,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 13,
+      "status": "answered",
+      "latency_ms": 13941,
+      "graph_ms": 784,
+      "model_ms": 13152,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 14,
+      "status": "answered",
+      "latency_ms": 16069,
+      "graph_ms": 704,
+      "model_ms": 15359,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 15,
+      "status": "answered",
+      "latency_ms": 14766,
+      "graph_ms": 389,
+      "model_ms": 14373,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 16,
+      "status": "answered",
+      "latency_ms": 16456,
+      "graph_ms": 2182,
+      "model_ms": 14268,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 17,
+      "status": "answered",
+      "latency_ms": 13913,
+      "graph_ms": 310,
+      "model_ms": 13601,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 18,
+      "status": "answered",
+      "latency_ms": 13495,
+      "graph_ms": 106,
+      "model_ms": 13386,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 19,
+      "status": "answered",
+      "latency_ms": 13883,
+      "graph_ms": 118,
+      "model_ms": 13763,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 4,
+      "usage": {
+        "calls": 4,
+        "input_tokens": 4634,
+        "output_tokens": 292,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    }
+  ],
+  "end_to_end_ms": {
+    "n": 20,
+    "errors": 0,
+    "min": 13098,
+    "p50": 15858,
+    "p95": 20180,
+    "max": 22268
+  },
+  "graph_ms": {
+    "n": 20,
+    "errors": 0,
+    "min": 106,
+    "p50": 453,
+    "p95": 2348,
+    "max": 2549
+  },
+  "model_ms": {
+    "n": 20,
+    "errors": 0,
+    "min": 12865,
+    "p50": 14943,
+    "p95": 19402,
+    "max": 21548
+  },
+  "validate_ms": {
+    "n": 20,
+    "errors": 0,
+    "min": 0,
+    "p50": 0,
+    "p95": 0,
+    "max": 0
+  },
+  "render_ms": {
+    "n": 20,
+    "errors": 0,
+    "min": 0,
+    "p50": 0,
+    "p95": 0,
+    "max": 0
+  },
+  "usage_totals": {
+    "calls": 80,
+    "input_tokens": 92680,
+    "output_tokens": 5840
+  }
+}
