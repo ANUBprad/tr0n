@@ -255,6 +255,34 @@ are skipped under `-short`):
 have no `EvidenceFact` to cite and remain outside the contract (operation-
 reference string path); recorded in `OPEN_QUESTIONS.md`.
 
+### 2.6 Adversarial grounded-answer suite (added 2026-10-17)
+
+The original ten labeled cases are preserved. A labeled adversarial suite is
+added in `internal/evaluation/model.go` (fictional synthetic data only) and
+covers every category the quality pass requires: conflicting sources, ambiguous
+entities, irrelevant evidence, stale/superseded sources, historical accuracy
+(including the half-open interval), adversarial source content, unsupported
+questions, cross-entity/cross-relation citation, conflicting temporal facts, and
+multi-hop grounding. Each case carries a stable `id`, a `category`, an explicit
+`rubric` rule, expected/forbidden terms, required relations/sources, a
+minimum-context count, and an expected status/abstention flag.
+
+The rubric is a **pure function** (`evaluation.Rubric`) so it is tested without
+a model: `internal/evaluation/rubric_test.go` feeds it a response containing the
+expected words but an unknown/fabricated citation, a citation borrowed from a
+different entity, a forbidden term, and a wrong status, and asserts each is
+rejected — the rubric cannot pass on word-matching alone. `fixture.go` +
+`fixture_test.go` add and re-check the real-graph conditions the suite depends on:
+two incompatible live `OWNS` claims (conflict), the seed handoff boundary at the
+half-open instant, an ambiguous name that must stay ambiguous, and the
+source-freshness contract (older observation refused, same-time different content
+refused, identical retry is a no-op, newer content accepted).
+
+What the corpus still does **not** provide: an entailment judge, a comparison
+against keyword/RAG/no-graph baselines, or independent human semantic review (see
+§6). `citation_passed` is a structural check and is reported separately from
+relevance.
+
 ## 3. Baselines and comparison
 
 TRON must be compared, on the same fixture corpus, against simpler systems so
@@ -303,9 +331,12 @@ Ollama model. The current run used `qwen3:4b-instruct`. It exercises current and
 historical owners, decision sources, repository lookup, three-hop authorship,
 missing entities, ambiguous names, unsupported financial/salary questions, and
 an instruction to invent an owner. Each request is bounded by model/tool budgets.
-Raw JSON and trace output are saved in the root-level `model-evaluation-submission.*`
+Raw JSON and trace output for the earlier 10-case run are saved in the root-level `model-evaluation-submission.*`
 files locally; they are not committed because they contain machine-specific
-latency/token counts and raw synthetic model responses.
+latency/token counts and raw synthetic model responses. The expanded 20-case
+run in §6.1 **is** committed under `artifacts/evaluation/` (its content is
+entirely synthetic; the machine-specific latency/token counts are labelled as
+such).
 
 The report distinguishes rubric passage, citation structure, answer coverage,
 claim counts, latency, and token use. `citation_passed` includes abstention
@@ -323,6 +354,62 @@ valid evidence IDs. It used 20 local model calls and reported 15,193 input and
 nearest-rank p95 19,227 ms). One three-hop case accounts for the long tail.
 These figures describe this single run and this GPU/CPU setup only. Broader
 semantic evaluation beyond this synthetic sample remains open.
+
+### 6.1 Expanded adversarial corpus — 2026-10-17 run (`qwen3:4b`)
+
+**Model tag.** This run uses the *installed* tag `qwen3:4b`, not the documented
+`qwen3:4b-instruct` (which is not installed). The bare tag ships with *thinking*
+on by default. The corpus was run twice: once as-is, and once with the model's
+thinking trace disabled (`"think": false` on the Ollama request — see
+[LATENCY_REPORT.md](LATENCY_REPORT.md)). The two configurations are reported
+side by side; figures are never compared across a different corpus or model tag.
+
+**Corpus.** 20 cases = the ten original cases (ids preserved) plus ten
+adversarial cases covering the §2.6 categories: conflicting sources, ambiguous
+entities, irrelevant evidence, historical boundaries (`valid_from` inclusive /
+`valid_to` exclusive), adversarial source content, unsupported questions,
+cross-entity citation, conflicting temporal facts, and multi-hop grounding.
+`stale-or-superseded` is exercised by the source-freshness integration test
+rather than a model case (a stale/older source is refused by the loader). Raw
+artifact: `artifacts/evaluation/model-eval-2026-10-17.json` (thinking off) and
+`...-thinking-on.json`.
+
+```powershell
+$env:TRON_OLLAMA_URL="http://localhost:11434"; $env:TRON_OLLAMA_MODEL="qwen3:4b"
+go build -o tron.exe ./cmd/tron
+cmd /c ".\tron.exe eval-model > artifacts\evaluation\model-eval-2026-10-17.json"
+```
+
+(Use `cmd /c` redirection: Windows PowerShell 5.1 `>` writes UTF-16LE. The
+committed artifacts were re-encoded to UTF-8 with no change to their values.)
+
+| Run | rubric pass | citation-valid | answered | abstained | invalid | timeout | error |
+|---|---|---|---|---|---|---|---|
+| `qwen3:4b`, thinking on (default) | 15 / 20 | 16 / 20 | 7 | 9 | 4 | 0 | 0 |
+| `qwen3:4b`, thinking off | **17 / 20** | **19 / 20** | 10 | 9 | 1 | 0 | 0 |
+
+`citation_valid` and `rubric_pass` are reported separately: a response can carry
+a structurally valid citation envelope and still be semantically wrong, so the
+rubric is the independent check. Disabling thinking improved all of rubric pass
+(+2), citation validity (+3), answered (+3), and invalid (−3).
+
+Per-case changes (rubric): `ignore-instructions`, `decision-sources`, and
+`three-hop` flipped fail→pass; `adversarial-fabricate-person` flipped pass→fail;
+`service-repository` and `decision-source-authors` failed in both
+configurations. `service-repository` failing in both is a loop-non-convergence
+limitation of this 4B model on this host, not a regression of the change.
+`three-hop` stays unreliable across repeated runs (5/20 answered in the 20-run
+benchmark); the single pass here is not a reliability claim.
+
+`adversarial-fabricate-person` is instructive: with thinking off the model
+followed a real relationship but answered with a repository instead of the owner
+(`payments-api — has repo → payments-engine`). The citation was structurally
+valid and the rubric still failed it, because the expected owner term was
+absent. That is the rubric working as designed — citation validity is not
+entailment.
+
+No human semantic review was performed for this expanded run; the counts above
+are automated rubric results only.
 
 ## 7. What is explicitly NOT claimed yet
 

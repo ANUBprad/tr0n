@@ -77,4 +77,7 @@ coverage/
 *.exe
 
 # Keep planning/artifacts as-is (docs, diagrams, planning)
+# Measured artifacts are small planned deliverables: keep the benchmark and
+# evaluation JSON despite the global *.json ignore above.
+!artifacts/**/*.json
 
