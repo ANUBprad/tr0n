@@ -55,7 +55,8 @@ Convention: `tron <group> <verb> [args]`. ✅ = exists today; ⏳ = proposed.
 | `tron experts <service>` | Who knows this best | service key, limit, now | ranked INFERENCE + basis | none | read | ✅ (op/API; CLI wrapper ⏳) |
 | `tron decision <ref>` | Why was this decided | key/title | trace + evidence | not found | read | ✅ (op/API; CLI wrapper ⏳) |
 | `tron incidents <service>` | Has this happened | service, since, keyword | incidents + resolvers | bad RFC3339 | read | ✅ (op/API; CLI wrapper ⏳) |
-| `tron ask "<question>"` | NL question via agent | question | answer + claims + evidence | no provider configured | read | ⏳ |
+| `POST /v1/ask` / workspace Ask | deterministic question workflows | question | answer + claims + evidence | unsupported/ambiguous questions abstain | read | ✅ |
+| `POST /v1/grounded` | bounded local Ollama Q&A | question, optional target/as_of | selected graph facts + validated citations | model absent/busy, weak or incomplete evidence | read | ✅ (optional local model; see `LOCAL_MODEL_AND_SYNC.md`) |
 
 ### 2.4 Decision support & actions
 | Command | Purpose | Inputs | Outputs | Errors | Permission | Status |

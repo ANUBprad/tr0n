@@ -101,28 +101,28 @@ Legend: every node's implementation status is enumerated in §3. The
 
 | Component | Package (current name / proposed) | Responsibility | Status |
 |---|---|---|---|
-| CLI | `cmd/tron` | owner/seed/demo/serve today | **IMPLEMENTED** (partial surface) |
-| HTTP API | `internal/api` | Read-only JSON over seven ops + health (six shipped ops + E6 `POST /v1/conflicts`) | **IMPLEMENTED** |
-| Web UI | `internal/ui` | Five built-in questions + evidence panels | **IMPLEMENTED** (fixed questions) |
+| CLI | `cmd/tron` | seed/demo/serve, import/sync, ownership and identity updates, constraints, model evaluation | **IMPLEMENTED** (partial surface) |
+| HTTP API | `internal/api` | Health, catalog, deterministic ask, bounded grounded ask, model status, and seven graph operations | **IMPLEMENTED** |
+| Web UI | `internal/ui` | Five deterministic prompts plus optional local-model question input and evidence panels | **IMPLEMENTED** |
 | Graph client & ops | `internal/graph` | Cypher, traversal, provenance; all Cypher lives here | **IMPLEMENTED** |
 | Knowledge types | `internal/knowledge` | Layers, provenance, claim validation | **IMPLEMENTED** |
 | Seed | `internal/seed` | Deterministic synthetic graph | **IMPLEMENTED** (demo data only) |
-| Agent loop | `internal/agent` | Provider-agnostic `Decide` seam, tool calls | **PARTIAL** (no provider wired) |
-| Identity / policy | *(none)* | AuthN/Z, tenant isolation | **PROPOSED** |
-| Source connectors | `internal/ingest` | Read external sources | **PROPOSED** |
-| Parse / normalize | `internal/ingest` | Text→structured facts | **PROPOSED** |
-| Dedupe / entity resolution | `internal/ingest` | Identity resolution across sources | **PROPOSED** (design in `SCHEMA.md`) |
-| Fact writer | `internal/ingest` | Single writer of graph facts, append-only | **PROPOSED** (seed is the only writer today) |
-| Document store | *(filesystem)* | Original source bytes/versions | **PROPOSED** |
+| Agent loop | `internal/agent` | Bounded tool loop with deterministic and local Ollama paths | **PARTIAL** (Ollama selection/citations; semantic quality gate pending) |
+| Identity / policy | `internal/api/security.go` | Server-owned bearer token to tenant graph selection | **PARTIAL** (no per-document ACL or managed identity) |
+| Source connectors | `internal/ingest`, `internal/graph/sync.go` | Explicit structured imports and Markdown snapshots | **PARTIAL** (no live service connectors) |
+| Parse / normalize | `internal/ingest` | Validate structured source records and explicit mappings | **PARTIAL** (no arbitrary prose extraction) |
+| Dedupe / entity resolution | `internal/graph` | Canonical identity, reviewed aliases, duplicate-key guards | **PARTIAL** (no cross-source merge) |
+| Fact writer | `internal/graph` | Seed, explicit imports/snapshots, sourced ownership updates | **PARTIAL** (single-writer contract; no distributed writer coordination) |
+| Document store | FalkorDB `Document` nodes | Latest imported source body plus provenance | **PARTIAL** (not a versioned document archive) |
 | Retrieval index | *(none)* | Lexical/semantic scoring to complement graph | **PROPOSED** (optional) |
 | Permission-aware retrieval | *(none)* | Filter context by source permissions | **PROPOSED** |
 | Reasoning engine | `internal/reason` | Observe→…→Learn pipeline (`REASONING.md`) | **PROPOSED** |
 | Deterministic rules | `internal/rules` | Budget/deadline/risk calculators | **PROPOSED** |
-| LLM synthesis | `internal/agent` adapter | Provider-specific `Decide` | **PROPOSED** |
+| LLM-assisted retrieval | `internal/agent/ollama.go` | Local model chooses bounded retrievals and cited relationship facts | **PARTIAL** (no hosted provider or free-form fact synthesis) |
 | Authorization gate | `internal/actions` | Autonomy levels, policy checks | **PROPOSED** |
 | Action executor + verifier | `internal/actions` | Idempotent execution, outcome verification | **PROPOSED** |
-| Scheduler / sync | `internal/sync` | Incremental sync, webhooks, cron | **PROPOSED** |
-| Observability | *(stdlib log → metrics)* | Latency, cost, error rates | **PARTIAL** (slog to stderr; health endpoint) |
+| Scheduler / sync | `internal/graph/sync.go` | Explicit complete Markdown snapshot synchronization | **PARTIAL** (manual invocation; no scheduler/webhooks) |
+| Observability | API/UI and `slog` | Health, answer latency, local model token/call usage, warnings, server logs | **PARTIAL** (no metrics backend or tracing) |
 
 ## 4. Interfaces and boundaries
 

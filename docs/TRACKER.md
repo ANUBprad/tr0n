@@ -15,9 +15,13 @@ Updated 2026-10-17. This describes the local Track 03 build. The broader M0–M7
 | Sourced ownership updates | Verified | `RecordOwner`; atomic close/open, history, no-op retry, invalid/backdated rejection tests |
 | Cross-load duplicate identity guard | Verified | `TestDuplicateKeyAcrossLoadsIsRejected`; per-client single-writer guard, external writers not constrained |
 | Browser workspace | Implemented and browser-checked | `workspace.html`, `app.js`, `app.css`; typed questions, context picker, sources, SVG context and handoff download |
-| Read-only API | Verified | `/v1/ask`, `/v1/catalog`, seven lower-level operations; real HTTP integration tests |
+| Read-only API | Verified | `/v1/ask`, `/v1/grounded`, `/v1/model`, `/v1/catalog`, health, seven graph operations; real HTTP integration tests |
 | Docker packaging and persistence | Implemented | Dockerfile, digest-pinned FalkorDB, named volume, append-only logging, health checks |
 | Model-loop cancellation and call bounds | Verified | `TestLoopStepBudgetAndInvalidMoves` |
+| Optional local-model Q&A | Implemented; quality gate partial | `/v1/grounded`, Ollama adapter, bounded retrieval/citations; ten-case corpus is reported in `EVALUATION.md`; participant review remains pending |
+| Markdown source snapshots | Verified | Explicit manifest, idempotent retry, retained cursor on partial failure, source-owned deletion; see `LOCAL_MODEL_AND_SYNC.md` |
+| Identity and database constraints | Implemented | Reviewed aliases, per-label unique constraints (`tron constraints`), cross-label application check |
+| Tenant graph selection | Partial | Server-owned bearer credentials and UI workspace switching; no per-document ACL or managed identity |
 | Demo walkthrough | Included | Captioned UI-state walkthrough in `artifacts/demo`; README includes a public download URL. Team review and optional live narration remain. |
 
 ## Roadmap additions under quality review

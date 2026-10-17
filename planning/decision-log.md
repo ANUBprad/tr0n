@@ -241,3 +241,26 @@ These supersede earlier deferrals for the local Track 03 build, authorized by th
 - Preserved upstream identity contract tests and bounded evidence assembly, including explicit truncation and ambiguous outcomes. Consolidated duplicate loader guards into the upstream implementation.
 - Kept source timestamps visible without assigning a universal stale threshold, consistent with the upstream freshness decision.
 - Current ownership uses actual UTC now, superseding the earlier far-future sentinel decision; scheduled future owners must not appear as current owners.
+
+## 2026-10-17 — local model, sync, and identity hardening
+
+- **Optional answering provider: local Ollama.** `internal/agent/ollama.go`
+  implements the existing `Decide` seam. The model receives bounded read-only
+  graph retrieval tools and selects evidence IDs; the server validates and
+  renders relationship facts. Deterministic `/v1/ask` remains model-free.
+- **M3 is still partial.** The labeled synthetic model corpus is executable and
+  the run is recorded in `docs/EVALUATION.md`; human semantic review and
+  keyword/text-RAG/no-graph baselines are still open. This supersedes earlier
+  dated statements that no provider or corpus existed, not the remaining
+  quality gate.
+- **Explicit Markdown snapshot sync.** `tron sync` uses declared paths and
+  identity mappings, advances the cursor only after a complete snapshot, and
+  deletes only source-owned documents absent from that completed snapshot.
+- **Unique keys.** `tron constraints` creates/verifies per-label database
+  uniqueness constraints. Application writes additionally reject cross-label
+  duplicates. This supersedes the 2026-10-15 database-constraint deferral;
+  cross-label uniqueness is not a database constraint, so external writers
+  remain outside that guarantee.
+- **Credential-selected tenant graphs.** Optional server-owned bearer
+  credentials scope requests to a graph. Per-document ACLs, managed identity,
+  and production deployment controls remain absent.

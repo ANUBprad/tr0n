@@ -13,11 +13,13 @@ evidence.
 [`REASONING.md`](REASONING.md), [`SECURITY.md`](SECURITY.md),
 [`EVALUATION.md`](EVALUATION.md).
 
-> **Current reality**: there is **no ingestion pipeline**. The only fact
-> writer today is the deterministic seeder (`internal/seed/seed.go`,
-> `internal/graph/load.go`), invoked by `tron seed`, which **wipes and
-> recreates** the graph. Everything below is a **proposal** unless marked
-> IMPLEMENTED.
+> **Current reality (2026-10-17):** deterministic seed, structured JSON record
+> imports, sourced ownership updates, and explicit complete Markdown snapshots
+> are implemented (`internal/graph`, `internal/ingest`, `cmd/tron`). Snapshot
+> sync has retry/cursor/deletion handling. There are no live service connectors,
+> arbitrary-text extraction, per-document ACL propagation, or versioned body
+> archive. The target pipeline below remains a design where not explicitly
+> marked implemented. See [`LOCAL_MODEL_AND_SYNC.md`](LOCAL_MODEL_AND_SYNC.md).
 
 ---
 

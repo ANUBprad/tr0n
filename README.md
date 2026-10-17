@@ -58,7 +58,7 @@ After setup, open the app and click the numbered prompts:
 | **04 · History** — Has payments-api timed out before? | Prior timeout incidents, dates, and recorded resolvers. |
 | **05 · Handoff** — Prepare a handoff for payments-api timeout investigation | A suggested lead, supporting evidence, and **Download handoff draft**. The draft does not assign or message anyone. |
 
-The same workflows support other entities in the synthetic graph. Choose **Context** for follow-ups such as “Who knows it best?”. Ambiguous entity matches ask for clarification; unsupported questions abstain.
+The same workflows support other entities in the synthetic graph. Choose **Context** for follow-ups such as “Who knows it best?”. Ambiguous entity matches ask for clarification; unsupported questions abstain. To use the separate local-model mode, follow [the Ollama setup](docs/LOCAL_MODEL_AND_SYNC.md#local-model); its answer path is bounded and graph-grounded, and its review status is documented in [the evaluation report](docs/EVALUATION.md).
 
 ### How to read an answer
 
@@ -167,7 +167,7 @@ Explicit CLI import / owner-set commands ------> FalkorDB
 | Interface | HTTP endpoints and embedded HTML/CSS/JavaScript workspace | [internal/api](internal/api) · [internal/ui](internal/ui) |
 | Data and commands | Fictional company seed, local server, imports, ownership updates, and demo checks | [internal/seed](internal/seed) · [cmd/tron](cmd/tron) |
 
-The stack is Go + FalkorDB + an embedded browser UI. No LLM provider is connected in this build, and no API key is required.
+The stack is Go + FalkorDB + an embedded browser UI. The optional Ollama adapter is local and needs no hosted API key; deterministic workflows continue to work when Ollama is stopped. The model path is separate from `/v1/ask` and is available at `/v1/grounded`.
 
 ## API
 
@@ -198,7 +198,7 @@ Integration tests use dedicated `tron_*_test` graphs and remove them afterwards.
 
 **Boundaries of this submission:**
 
-- Question handling is deterministic across five intents; it is not general-purpose LLM reasoning.
+- The default `/v1/ask` flow is deterministic across five intents. Optional local Ollama answers select retrieved relationship facts; they do not provide unrestricted reasoning or free-form factual synthesis.
 - All demonstration data is synthetic. Chats and tickets are `Document` records; no live Slack, GitHub, or other private-source connector is enabled.
 - Import requires structured records with explicit identities. It does not automatically extract facts from arbitrary prose.
 - Historical expertise filters ownership only; other activity scores use recorded activity and current recency. It is not a complete historical expertise snapshot.

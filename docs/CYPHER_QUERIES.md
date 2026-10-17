@@ -94,7 +94,7 @@ The conflict scan intentionally retrieves state and event edges alike, then filt
 
 ## Seed indexes
 
-`tron seed` resets the demo graph and creates a non-unique index on each node label's `key` before loading nodes and relationships. The schema's uniqueness requirement is not database-enforced yet; the serialized writer now rejects cross-load duplicates across labels. External writers still require database constraints.
+`tron seed` resets the demo graph and ensures per-label uniqueness constraints on `key` before loading nodes and relationships. Application writes also reject duplicate keys across labels. Direct or concurrent external writers must preserve the cross-label invariant themselves; they are outside the app's serialized writer contract.
 
 
 ## Import and ownership update operations

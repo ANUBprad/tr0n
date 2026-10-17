@@ -3,8 +3,8 @@
 **Status**: Canonical. Authority for how TRON measures quality and trust.
 **Last updated**: 2026-10-17.
 **Current-state authority**: testing posture in
-[`architecture-minimal.md`](architecture-minimal.md) and the existing Go test
-suites (12 files under `cmd/` and `internal/`).
+[`architecture-minimal.md`](architecture-minimal.md) and the Go test suites
+under `cmd/` and `internal/`.
 **Related**: [`PRD.md`](PRD.md) §8, [`SCHEMA.md`](SCHEMA.md),
 [`REASONING.md`](REASONING.md), [`ACTIONS.md`](ACTIONS.md),
 [`SECURITY.md`](SECURITY.md), [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md).
@@ -127,12 +127,11 @@ correctness needs a second source). What is runnable and locked now
   (`TestResolveEntity`);
 - an ambiguous tier returns the **candidate list**, never a single guessed
   key, and an empty query returns nothing (`TestResolveEntity`);
-- the loader enforces `key` uniqueness **across loads and labels** (not just
-  in-batch): a second load of an existing key is rejected before any write,
-  so no two nodes can share a key and the resolver stays unambiguous
-  (`TestDuplicateKeyAcrossLoadsIsRejected`). This is application-level
-  enforcement of the requirement; the DB-level constraint stays deferred
-  (2026-10-15) — no merge, no rewrite, no provenance loss.
+- database constraints enforce `key` uniqueness per label; application writes
+  additionally check across labels. The loader rejects a second load of an
+  existing key before any write (`TestDuplicateKeyAcrossLoadsIsRejected`).
+  Direct external writers can still violate the cross-label invariant. No merge,
+  rewrite, or provenance loss is performed.
 - adversarial contract suite `TestResolveEntityContract` (9 subtests, live
   FalkorDB): stable `key` evidence vs weak `name`/`title`, label/kind
   narrowing, no auto-select of a candidate, determinism across graph

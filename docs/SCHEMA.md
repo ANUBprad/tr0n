@@ -226,14 +226,10 @@ Rules:
 
 ## 7. Identity, provenance, and naming (unchanged, restated)
 
-- **Identity**: `key = "<src>:<native-id>"`. **Required** unique and indexed
-  per label; the current implementation ships a **non-unique** index, so
-  uniqueness is enforced by the bulk loader — in-batch **and, since
-  2026-10-16, across loads and labels** (`LoadNodes` rejects a batch key that
-  already exists, before writing) — and database-level enforcement stays
-  deferred 2026-10-15 (a known limitation, not a relaxation;
-  [`GRAPH_MODEL.md`](GRAPH_MODEL.md) Indexes, `OPEN_QUESTIONS.md`,
-  `planning/decision-log.md`).
+- **Identity**: `key = "<src>:<native-id>"`. Unique per label with a database
+  constraint installed by `tron constraints`; application writers additionally
+  reject cross-label duplicates (`LoadNodes` checks before writing). Direct
+  external writers must preserve the cross-label invariant.
 - **Provenance minimum on every fact**: `src_type`, `src_ref`, `observed_at`,
   `extraction`, `valid_from`/`valid_to` (state edges). `confidence` only when
   extraction is non-deterministic (`knowledge-model.md`).

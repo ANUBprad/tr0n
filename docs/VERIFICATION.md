@@ -1,4 +1,22 @@
-# Integration verification - 2026-10-16
+# Integration verification
+
+## Current release checks — 2026-10-17
+
+- Runtime revision: `c31b3e3` on `submission/main` (`Shashwat-911/tr0n-shashwat`); this verification pass adds documentation corrections only.
+- `go test -race -count=1 -p 1 ./...`: all packages pass in a Go 1.26.5 Linux container connected to the running FalkorDB service.
+- `go vet ./...` and `node --check internal/ui/app.js`: pass.
+- `docker compose run --rm app demo`: 7/7 graph-backed checks pass.
+- `GET /v1/health`: `{"status":"ok"}`; app, FalkorDB, and local Ollama containers are running.
+- `GET /v1/model` reports the configured `qwen3:4b-instruct`; a live `POST /v1/grounded` ownership question returned the recorded owner and a cited relationship fact.
+- The local Qwen 3 4B model run and its limitations are recorded in
+  [`EVALUATION.md`](EVALUATION.md); participant semantic review remains pending
+  in [`MODEL_REVIEW.md`](MODEL_REVIEW.md).
+- The prior UI walkthrough is a captioned sequence of screenshots. It does not
+  demonstrate the newer optional Ollama answering flow.
+
+The race-enabled full suite, static checks, demo, and health probe were rerun on
+this machine for this checkpoint. Model evaluation metrics are from the dated run
+in `EVALUATION.md`, not a fresh rerun in this verification pass.
 
 ## Preserved history
 
@@ -23,7 +41,7 @@
 
 ## Submission steps still requiring the team
 
-Review the published walkthrough and code, and explain your own contribution accurately. The implementation is a deterministic local prototype; general LLM integration, live private connectors, production authorization, and full E1-E12 benchmark coverage are not claimed. See TRACKER.md and EVALUATION.md for remaining scope and known identity ambiguity.
+Review the published walkthrough and code, complete the answer-quality review, and explain your own contribution accurately. The implementation is a local prototype with an optional local Ollama adapter; hosted model support, live private connectors, production authorization, and full E1-E12 benchmark coverage are not claimed. See [`TRACKER.md`](TRACKER.md) and [`EVALUATION.md`](EVALUATION.md) for remaining scope and known identity ambiguity.
 
 ## Publication integration
 

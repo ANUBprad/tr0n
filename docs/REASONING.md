@@ -9,13 +9,15 @@ operation boundary + agent seam) and [`architecture-minimal.md`](architecture-mi
 [`ACTIONS.md`](ACTIONS.md), [`TECHSPEC.md`](TECHSPEC.md),
 [`EVALUATION.md`](EVALUATION.md).
 
-> **Current reality**: deterministic graph operations + deterministic answer
-> composers exist (`internal/graph`, `internal/ui`). The agent loop exists as a
-> provider-agnostic seam with **no LLM wired** (`internal/agent/agent.go`).
-> Option comparison and planning are **PROPOSED**; contradiction detection ships
-> as `FindConflicts` (E6 v1, 2026-10-16), bounded context assembly as
-> `AssembleEvidence` (M3, 2026-10-16), and a source-grounded answer contract as
-> `GroundedAnswer` (E3, 2026-10-16 — structural linkage only).
+> **Current reality (2026-10-17):** deterministic graph operations and answer
+> composers coexist with an optional local Ollama adapter for bounded retrieval
+> and relationship-fact selection (`internal/agent/ollama.go`,
+> `/v1/grounded`). Citations are structurally checked and facts rendered by the
+> server; semantic entailment is not established. Participant review and
+> baselines remain open. Option comparison, planning, authorization, and
+> execution are **PROPOSED**. Contradiction detection ships as `FindConflicts`
+> (E6 v1), bounded context assembly as `AssembleEvidence`, and the
+> `GroundedAnswer` envelope proves structural linkage only.
 
 ---
 

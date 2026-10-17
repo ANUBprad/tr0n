@@ -1,4 +1,4 @@
-> **Current competition build (2026-10-16):** See `TRACKER.md` and the root README for implemented behavior. The build now includes bounded natural-language routing, inspectable source content, handoff drafts, structured file imports, and sourced ownership updates. General-purpose LLM reasoning, live connectors, and autonomous execution remain future work.
+> **Current competition build (2026-10-17):** See `TRACKER.md` and the root README for implemented behavior. In addition to deterministic workflows and explicit source imports, the build includes a bounded local Ollama retrieval-and-citation path, executable evaluation corpus, Markdown snapshot sync, reviewed identity aliases, and credential-selected tenant graphs. Participant answer review and baseline comparisons remain open; live service connectors and autonomous execution remain future work.
 
 # TRON — Implementation Roadmap
 
@@ -16,6 +16,28 @@ implementation to the target organizational brain.
 > software. Those results are summarized here as **Milestone 0**, not erased.
 
 ---
+
+## Current status snapshot — 2026-10-17
+
+- **M1 — Partial:** temporal ownership and conflict detection are verified;
+  `tron constraints` installs per-label key uniqueness and application writers
+  guard cross-label duplicates. Multi-source identity merging remains out of
+  scope.
+- **M2 — Partial:** structured JSON imports and explicit Markdown snapshot
+  synchronization with retry/cursor/deletion behavior are verified. No live
+  private-service connector or permission propagation is included.
+- **M3 — Partial:** local Ollama retrieval, citation validation, abstention,
+  truncation reporting, and a small synthetic evaluation run. The participant
+  answer review and baseline comparisons remain open; structural citations do
+  not prove semantic entailment.
+- **M4–M6 — Not started:** decision planning, approved action execution, and
+  proactive alerts remain behind the M3 quality/review gate.
+- **M7 — Partial:** optional credential-selected tenant graphs and local
+  loopback defaults exist; this is not production readiness.
+
+[`TRACKER.md`](TRACKER.md) is the concise implementation evidence index. The
+dated history below records decisions and work at the time and may contain
+superseded status statements.
 
 ## Milestone 0 — Architecture & repository baseline (DONE)
 
@@ -175,8 +197,8 @@ implementation to the target organizational brain.
 - **Objective / value**: Open-ended, natural-language questions answered with
   citations, abstention, and contradiction handling.
 - **Reuse**: agent loop + `Decide` seam, the deterministic graph ops (incl. `graph.AssembleEvidence`), `Answer.Validate`.
-- **Gaps**: wire **one** LLM provider adapter; context assembly **retrieval half landed 2026-10-16** (`AssembleEvidence`, `assemble_context` tool) and the **structural source-grounded contract landed 2026-10-16** (`graph.GroundedAnswer`, E3 PARTIAL — linkage only, no entailment) — permission-aware filtering, relevance/recency ranking, and factual-correctness evaluation (needs a labeled corpus) still PROPOSED; contradiction
-  and uncertainty rendering; abstention gate; `POST /v1/ask`.
+- **Implemented since initial roadmap**: local Ollama `Decide` adapter, bounded connected retrieval, `/v1/grounded`, structural citation validation, server-rendered relationship facts, explicit abstention/truncation, and a ten-case synthetic evaluation corpus. The deterministic `/v1/ask` endpoint remains available.
+- **Gaps**: participant semantic review; keyword, text-RAG, and no-graph baselines; broader adversarial and entailment evaluation; permission-aware per-document filtering and relevance/recency ranking. E3 remains **PARTIAL** until the human review and broader evaluation are complete; structural citation checks do not prove entailment.
 - **Dependencies**: M2 (real data) and the ADR for the provider (RULES §4).
 - **Files**: `internal/agent` (adapter), **new** `internal/reason`;
   `internal/api`, `internal/ui` (open questions).
