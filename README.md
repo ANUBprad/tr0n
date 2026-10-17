@@ -26,8 +26,21 @@ The optional model path, Markdown snapshot synchronization, reviewed identity al
 database constraints, and credential-selected tenant graphs are implemented locally.
 See [the operational contract](docs/LOCAL_MODEL_AND_SYNC.md) for commands and boundaries.
 The previous walkthrough demonstrates the deterministic workflows. It does not demonstrate
-these newer features. Model evaluation results and remaining gates are tracked separately;
-this is not a claim that the full M1–M7 production roadmap is complete.
+these newer features. A fresh, continuous end-to-end recording of the current build
+(including the local-model and synchronization paths) is **not yet captured** —
+this environment has no screen recorder, so the old walkthrough is not relabelled;
+the exact manual recording step is in
+[`artifacts/demo/README.md`](artifacts/demo/README.md) and the shot list is
+[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
+
+The three-hop latency is measured, not estimated: [`docs/LATENCY_REPORT.md`](docs/LATENCY_REPORT.md)
+records a 3-warm-up + 20-run benchmark before and after a change to the local-model
+request, with the raw JSON in [`artifacts/benchmarks/`](artifacts/benchmarks). The
+measured bottleneck is model generation, not the graph. The expanded grounded-answer
+corpus (18 labeled cases, including an adversarial suite) and its rubric are documented
+in [`docs/EVALUATION.md`](docs/EVALUATION.md) §2.6 and §6. Model evaluation results and
+remaining gates are tracked separately; this is not a claim that the full M1–M7
+production roadmap is complete.
 
 ## The problem
 

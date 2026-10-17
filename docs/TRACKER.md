@@ -18,7 +18,8 @@ Updated 2026-10-17. This describes the local Track 03 build. The broader M0–M7
 | Read-only API | Verified | `/v1/ask`, `/v1/grounded`, `/v1/model`, `/v1/catalog`, health, seven graph operations; real HTTP integration tests |
 | Docker packaging and persistence | Implemented | Dockerfile, digest-pinned FalkorDB, named volume, append-only logging, health checks |
 | Model-loop cancellation and call bounds | Verified | `TestLoopStepBudgetAndInvalidMoves` |
-| Grounded local-model Q&A & review | Partial | `/v1/grounded`, Ollama adapter, bounded retrieval/citations; ten synthetic samples reviewed; no broad entailment evaluation |
+| Grounded local-model Q&A & review | Partial | `/v1/grounded`, Ollama adapter, bounded retrieval/citations; 18-case labeled corpus (10 preserved + 8 adversarial) with a pure rubric; measured run 17/20 rubric, 19/20 citation-valid; no entailment judge or baseline comparison |
+| Three-hop latency benchmark | Measured | `tron bench [warmup] [iterations]`; `artifacts/benchmarks/three-hop-latency*.json`; `LATENCY_REPORT.md`; 3 warm-up + 20 measured runs per config. Model generation is the bottleneck (`graph_ms` ~0.1–0.6 s); the `qwen3:4b` tag ran with thinking on by default |
 | Comparative baseline benchmark | Not implemented | Search/RAG baselines have not been run; earlier hard-coded example scores were removed |
 | Decision support & option comparison (M4) | Partial | `internal/rules`, `POST /v1/plan`, `tron plan`; validated caller-scored options, Pareto and weight perturbation; scores are not graph-sourced |
 | Controlled action execution (M5) | Partial | Authenticated tenant roles can create local drafts; in-memory replay/audit only; no durable state or external execution; state changes denied |
@@ -26,14 +27,22 @@ Updated 2026-10-17. This describes the local Track 03 build. The broader M0–M7
 | Markdown source snapshots | Verified | Explicit manifest, idempotent retry, retained cursor on partial failure, source-owned deletion; see `LOCAL_MODEL_AND_SYNC.md` |
 | Identity and database constraints | Implemented | Reviewed aliases, per-label unique constraints (`tron constraints`), cross-label application check |
 | Tenant graph selection | Partial | Server-owned bearer credentials and UI workspace switching; no per-document ACL or managed identity |
-| Demo walkthrough | Included | Captioned UI-state walkthrough in `artifacts/demo`; README includes a public download URL. Team review and optional live narration remain. |
+| Demo walkthrough | Included | Captioned UI-state walkthrough in `artifacts/demo`. A fresh continuous recording of the current build is **not yet captured** (no screen recorder in this environment); the exact manual step is in `artifacts/demo/README.md` and the shot list in `docs/DEMO_SCRIPT.md`. The old walkthrough is not relabelled. |
 
 ## Roadmap additions under quality review
 
 - Local Ollama adapter behind `Decide`, `/v1/grounded`, bounded connected retrieval,
   strict citations, server-rendered relationship facts, and visible abstention/truncation.
 - Executable labeled model corpus with latency/token measurements; review artifacts
-  distinguish automated rubric results from participant semantic judgement.
+  distinguish automated rubric results from participant semantic judgement. Expanded
+  with an eight-case adversarial suite (conflicts, ambiguity, irrelevant evidence,
+  stale/superseded, historical boundaries, adversarial source content, unsupported
+  questions, cross-entity citation, conflicting temporal facts, multi-hop) and a pure,
+  independently tested rubric.
+- A per-phase latency benchmark (`tron bench`) and `LATENCY_REPORT.md`; the measured
+  bottleneck is model generation, and disabling the model's default thinking trace
+  (`think:false`) cut median three-hop model time ~6.9× without reducing answer quality.
+  The three-hop question remains unreliable on the 4B CPU model; that is documented.
 - Markdown snapshot manifests, idempotent retries, source-owned deletion, retained cursor
   on partial failure, and explicit identity mappings.
 - Per-label database uniqueness, canonical-only `key=` lookup, reviewed aliases reserved
