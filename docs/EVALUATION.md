@@ -1,7 +1,7 @@
 # TRON — Evaluation & Quality Assurance
 
 **Status**: Canonical. Authority for how TRON measures quality and trust.
-**Last updated**: 2026-10-16.
+**Last updated**: 2026-10-17.
 **Current-state authority**: testing posture in
 [`architecture-minimal.md`](architecture-minimal.md) and the existing Go test
 suites (12 files under `cmd/` and `internal/`).
@@ -37,7 +37,7 @@ cost/latency — the parts that don't exist yet.
 |---|---|---|---|---|
 | E1 | **Entity resolution** | pairs of records known to be same/different | merge correctness, no false merges | PARTIAL (2026-10-16: deterministic tiers `TestResolveEntity`; adversarial contract suite `TestResolveEntityContract`; loader rejects cross-load/label duplicate keys `TestDuplicateKeyAcrossLoadsIsRejected`; multi-source merge deferred to M2) |
 | E2 | **Multi-hop graph queries** | fixtures answerable only via ≥3 hops | the product thesis, as a test | PARTIAL (seed contract test) |
-| E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PARTIAL (2026-10-16: structural claim-to-source linkage proven — `TestGroundedAnswer*`; factual correctness/entailment still needs a wired model + labeled corpus, see §6) |
+| E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PARTIAL (local Ollama, bounded graph retrieval, citation selection, and a 10-case answer/abstention corpus now run; see §6; semantic participant review and baseline comparisons remain open) |
 | E4 | **Citation support** | answers + their claims | every claim cites a valid path (`Answer.Validate`) | IMPLEMENTED (structural) |
 | E5 | **Temporal accuracy** | time-shifted fixtures (owner 2026 vs 2027) | correct as-of results | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindOwnerAsOf`/`TestFindExpertsAsOf`, `internal/graph` `TestLoadEdgesNormalizesOffsetToUTC`, `internal/api` `TestEndpoints/owner`+`/experts`, seed handoff fixture; see §2.2 |
 | E6 | **Contradiction detection** | injected conflicting state-relation claims (overlapping half-open windows) + non-conflicting decoys | both surfaced, none hidden; nothing extra flagged | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindConflicts`, `internal/api` `TestEndpoints/conflicts`; scope decided 2026-10-15, see §2.1 |
@@ -48,7 +48,7 @@ cost/latency — the parts that don't exist yet.
 | E11 | **Proactive alert quality** | events with/without true alerts | precision/recall of alerts | PROPOSED (no proactive feature yet) |
 | E12 | **Latency & cost** | workload replay | p50/p95 per op; tokens/$ per answer | PARTIAL (per-op ms captured in UI) |
 
-**Note (2026-10-16)**: M3 retrieval / context assembly is implemented and tested
+**Note (2026-10-17)**: M3 retrieval / context assembly is implemented and tested
 (§2.4). It is the evidence-selection precondition for E3/E4 and does not by
 itself change their status; the separate E3 grounding contract (§2.5) moves E3
 to PARTIAL (structural linkage only).
@@ -245,11 +245,13 @@ are skipped under `-short`):
   (`TestGroundedAnswerFromRetrieval`).
 
 **What this does NOT prove (and why E3 stays PARTIAL)** — the contract tests that
-a claim's cited evidence *exists* and *matches* the claim; it does not test that
-the claim's text is *entailed* by that evidence, nor that an answer is factually
-correct. That needs a wired answering model and a labeled Q/A corpus
-(§6), neither of which exists. A valid evidence reference is a necessary
-precondition, not sufficient grounding. **Absence** claims ("no `OWNS` edge")
+  a claim's cited evidence *exists* and *matches* the claim. The wired local model
+  now selects IDs from retrieved facts; the server renders the canonical endpoints
+  and relationship, preventing the model from relabeling an `OWNS` edge as a salary
+  or job-title fact. The small rubric corpus measures expected terms, retrieval
+  paths, and abstention, but it is not an entailment judge. Participant review and
+  comparison baselines remain open. A valid evidence reference is a necessary
+  precondition, not sufficient evidence of question relevance. **Absence** claims ("no `OWNS` edge")
 have no `EvidenceFact` to cite and remain outside the contract (operation-
 reference string path); recorded in `OPEN_QUESTIONS.md`.
 
@@ -293,14 +295,46 @@ quality targets.
 - Every eval run records: data version, model/provider version, random seeds,
   and software revision — otherwise results are not comparable over time.
 
-## 6. What is explicitly NOT claimed yet
+## 6. Local model evaluation (measured 2026-10-17)
 
-- No accuracy, latency, or cost numbers exist, because no labeled corpus, no
-  wired LLM, and no real ingestion exist.
+`go run ./cmd/tron eval-model` seeds the disposable `tron_model_eval` graph and
+runs the corpus in `internal/evaluation/model.go` through the configured local
+Ollama model. The current run used `qwen3:4b-instruct`. It exercises current and
+historical owners, decision sources, repository lookup, three-hop authorship,
+missing entities, ambiguous names, unsupported financial/salary questions, and
+an instruction to invent an owner. Each request is bounded by model/tool budgets.
+Raw JSON and trace output are saved in the root-level `model-evaluation-submission.*`
+files locally; they are not committed because they contain machine-specific
+latency/token counts and raw synthetic model responses.
+
+The report distinguishes rubric passage, citation structure, answer coverage,
+claim counts, latency, and token use. `citation_passed` includes abstention
+envelopes, so it must not be read as an answer-accuracy score. The stricter
+`valid_claim_count/claim_count` checks nonempty claim envelopes only; neither
+proves relevance. Latency varies with GPU/CPU offload and cold starts; hardware
+cost is not estimated. The participant should review [the answer samples](MODEL_REVIEW.md)
+before the M3 quality gate can be marked complete.
+
+The 2026-10-17 run passed the automated term/path/abstention rubric in 10/10
+cases, with 10/10 structurally valid envelopes and 10 selected claims with
+valid evidence IDs. It used 20 local model calls and reported 15,193 input and
+658 output tokens. Per-question latency was 947–19,227 ms (median 2,359 ms;
+nearest-rank p95 19,227 ms). One three-hop case accounts for the long tail.
+These figures describe this single run and this GPU/CPU setup only. Semantic
+participant review is still pending.
+
+## 7. What is explicitly NOT claimed yet
+
+- No broad accuracy claim exists. The labeled corpus is small and uses a simple
+  expected-term/abstention rubric. Latency and token counts are per-run local
+  measurements, not a representative workload or cost estimate.
+- The Markdown adapter is a bounded local snapshot reader, not a live Slack,
+  ticketing, or document-service connector.
+- Participant semantic review and keyword/RAG/no-graph LLM baselines remain open.
 - The demo's pass/fail checks (`cmd/tron/demo.go`) prove that operations
   *answer*, not that the answers are *correct vs a baseline*.
 
-## 7. Definition of done for the evaluation milestone
+## 8. Definition of done for the evaluation milestone
 
 - At least E1, E2, E3, E4, E5, E6, E9, E10 have runnable suites with
   fixtures.

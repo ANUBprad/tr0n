@@ -1,0 +1,4 @@
+# Optional NVIDIA acceleration; requires a working Docker GPU runtime.
+services:
+  ollama:
+    gpus: all

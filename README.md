@@ -4,7 +4,7 @@
 
 TRON connects people, teams, services, code contributions, documents, chats, tickets, incidents, and decisions in FalkorDB. Ask who owns a service, who has relevant experience, why a decision was made, or who should investigate an incident. Every supported answer returns graph operations, evidence paths, and inspectable source records.
 
-The agent uses deterministic routing across five workflows. It needs no LLM or API key. It resolves names from the graph, asks for clarification when ambiguous, runs bounded graph operations, and separates facts, computed inferences, and recommendations. Removing FalkorDB removes the facts and relationships needed to answer.
+The default agent uses deterministic routing across five workflows and needs no LLM or API key. An optional local Ollama mode chooses bounded graph retrievals and selects cited relationship facts; the server renders their endpoints and predicates instead of trusting generated prose. It resolves names from the graph, asks for clarification when ambiguous, runs bounded graph operations, and separates facts, computed inferences, and recommendations. Removing FalkorDB removes the facts and relationships needed to answer.
 
 ## Start here: judge's guide
 
@@ -19,6 +19,15 @@ The agent uses deterministic routing across five workflows. It needs no LLM or A
 The video is a captioned sequence of screenshots captured from the running app. Complete local setup is provided below; there is no hosted application deployment.
 
 ![TRON answering a decision question with graph operations and source records](artifacts/demo/03-decision.png)
+
+## Latest roadmap work
+
+The optional model path, Markdown snapshot synchronization, reviewed identity aliases,
+database constraints, and credential-selected tenant graphs are implemented locally.
+See [the operational contract](docs/LOCAL_MODEL_AND_SYNC.md) for commands and boundaries.
+The previous walkthrough demonstrates the deterministic workflows. It does not demonstrate
+these newer features. Model evaluation results and remaining gates are tracked separately;
+this is not a claim that the full M1–M7 production roadmap is complete.
 
 ## The problem
 
@@ -98,7 +107,7 @@ go run ./cmd/tron serve
 | `TRON_FALKOR_ADDR` | `localhost:6379` | FalkorDB address |
 | `TRON_HTTP_ADDR` | `127.0.0.1:8080` | HTTP bind address |
 
-The local server and Docker host ports bind to loopback. This submission is a single-company local demo; it does not include public hosting, authentication, tenant isolation, or private-source integrations.
+The local server and Docker host ports bind to loopback. The default configuration is a single-company local demo. Optional server-owned bearer credentials isolate tenant graphs; see the access contract above. Public hosting and private-source connectors are not included.
 
 ## Keep knowledge current
 
@@ -193,7 +202,7 @@ Integration tests use dedicated `tron_*_test` graphs and remove them afterwards.
 - All demonstration data is synthetic. Chats and tickets are `Document` records; no live Slack, GitHub, or other private-source connector is enabled.
 - Import requires structured records with explicit identities. It does not automatically extract facts from arbitrary prose.
 - Historical expertise filters ownership only; other activity scores use recorded activity and current recency. It is not a complete historical expertise snapshot.
-- The app is designed for one local company and a single writer. Public authentication, tenant isolation, and production access controls are not implemented.
+- The app requires one writer per graph. Optional bearer credentials select tenant graphs, but per-document ACLs, managed identity, and production access controls are not implemented.
 - Source refresh retains the latest document body; ownership updates preserve relationship history. These are different retention guarantees.
 - Broad benchmark coverage and comparison baselines remain incomplete. See [EVALUATION.md](docs/EVALUATION.md) for known identity ambiguity and evaluation status.
 

@@ -1,6 +1,6 @@
 # TRON — implementation tracker
 
-Updated 2026-10-16. This describes the local Track 03 build. The broader M0–M7 production roadmap remains in IMPLEMENTATIONPLAN.md; its proposed features are not submission claims.
+Updated 2026-10-17. This describes the local Track 03 build. The broader M0–M7 production roadmap remains in IMPLEMENTATIONPLAN.md; its proposed features are not submission claims.
 
 | Capability | Status | Evidence |
 |---|---|---|
@@ -20,11 +20,24 @@ Updated 2026-10-16. This describes the local Track 03 build. The broader M0–M7
 | Model-loop cancellation and call bounds | Verified | `TestLoopStepBudgetAndInvalidMoves` |
 | Demo walkthrough | Included | Captioned UI-state walkthrough in `artifacts/demo`; README includes a public download URL. Team review and optional live narration remain. |
 
+## Roadmap additions under quality review
+
+- Local Ollama adapter behind `Decide`, `/v1/grounded`, bounded connected retrieval,
+  strict citations, server-rendered relationship facts, and visible abstention/truncation.
+- Executable labeled model corpus with latency/token measurements; review artifacts
+  distinguish automated rubric results from participant semantic judgement.
+- Markdown snapshot manifests, idempotent retries, source-owned deletion, retained cursor
+  on partial failure, and explicit identity mappings.
+- Per-label database uniqueness, canonical-only `key=` lookup, reviewed aliases reserved
+  across application writers, and conflicting-citation rejection.
+- Credential-selected tenant graphs and UI cleanup when changing workspaces.
+- See [operational setup and boundaries](LOCAL_MODEL_AND_SYNC.md).
+
 ## Integrated upstream work
 
 - E3: stable content-derived `EvidenceFact.ID` and `GroundedAnswer` validate FACT citations against carried evidence, subjects, relationships, and context status. Covered by `TestGroundedAnswer*`. This is structural grounding, not semantic entailment; the existing `/v1/ask` response is not automatically converted to this new contract.
 - M3 audit: total fact ordering and explicit `over_budget` outcomes are retained, including malformed-window, boundary, and size-limit tests.
-- E3 remains PARTIAL; model-based correctness evaluation and comparison baselines remain outstanding.
+- E3 remains PARTIAL; local-model evaluations are now executable, with structural validity and answer relevance reported separately. Participant semantic review and comparison baselines remain outstanding.
 
 - M3: `AssembleEvidence` and `assemble_context` supply deterministic one-hop context with relationship/time filters, count and byte bounds, and explicit truncation. Verified by `TestAssembleEvidence*` and `TestAssembleContextToolSuppliesEvidence`.
 - E1: adversarial `TestResolveEntityContract` retained; key-shaped name-tier ambiguity remains documented in EVALUATION.md.
@@ -32,12 +45,12 @@ Updated 2026-10-16. This describes the local Track 03 build. The broader M0–M7
 
 ## Deliberate boundaries
 
-- Five deterministic question intents; no configured LLM or unconstrained text-to-Cypher.
-- Synthetic dataset and explicit structured file import; no private/live service connectors.
-- Single local company and writer. No public authentication, permission filtering, or multi-tenant deployment.
+- Five deterministic question intents plus optional local Ollama retrieval and cited relationship selection. No unconstrained text-to-Cypher.
+- Synthetic dataset, structured imports, and explicit Markdown snapshots with retry/cursor/deletion handling; no private service connectors.
+- One writer per tenant graph. Optional server-owned bearer credentials select tenant graphs; no per-document permissions or managed identity.
 - Document refresh replaces the latest body; it is not a bitemporal document archive. Ownership changes retain edge history.
 - Validity windows use whole-second canonical UTC precision. Subsecond window endpoints are rejected rather than silently truncated.
 - As-of expertise filters ownership, not all historical activity.
-- Optional production milestones (M4–M7) remain future work, including autonomous execution and proactive alerts.
+- M4 planning, M5 approved actions, and M6 alerts remain gated on M3 evaluation and participant review. M7 has partial tenant isolation, not production readiness.
 
 Merged-code runtime verification is recorded in [VERIFICATION.md](VERIFICATION.md).

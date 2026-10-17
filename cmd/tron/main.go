@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,8 +12,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/ANUBprad/tr0n/internal/agent"
 	"github.com/ANUBprad/tr0n/internal/api"
+	"github.com/ANUBprad/tr0n/internal/evaluation"
 	"github.com/ANUBprad/tr0n/internal/graph"
+	"github.com/ANUBprad/tr0n/internal/ingest"
 	"github.com/ANUBprad/tr0n/internal/seed"
 	"github.com/ANUBprad/tr0n/internal/ui"
 )
@@ -23,6 +27,73 @@ func main() {
 		addr = "localhost:6379"
 	}
 	switch {
+	case len(os.Args) == 5 && os.Args[1] == "identity-link":
+		c := connect(addr)
+		defer c.Close()
+		if err := c.RegisterIdentity(os.Args[2], os.Args[3], os.Args[4], time.Now().UTC()); err != nil {
+			fatal(err)
+		}
+		fmt.Println("reviewed identity mapping recorded")
+
+	case len(os.Args) == 2 && os.Args[1] == "eval-model":
+		endpoint := os.Getenv("TRON_OLLAMA_URL")
+		if endpoint == "" {
+			endpoint = "http://localhost:11434"
+		}
+		name := os.Getenv("TRON_OLLAMA_MODEL")
+		if name == "" {
+			name = "qwen3:4b-instruct"
+		}
+		model, err := agent.NewOllama(endpoint, name)
+		if err != nil {
+			fatal(err)
+		}
+		c, err := graph.New(addr, "tron_model_eval")
+		if err != nil {
+			fatal(err)
+		}
+		defer c.Close()
+		defer c.Delete()
+		if _, err := seed.Load(c); err != nil {
+			fatal(err)
+		}
+		if os.Getenv("TRON_EVAL_TRACE") == "1" {
+			model.Trace = func(s string) { fmt.Fprintln(os.Stderr, s) }
+		}
+		if id := os.Getenv("TRON_EVAL_CASE"); id != "" {
+			for _, tc := range evaluation.Cases {
+				if tc.ID == id {
+					evaluation.Cases = []evaluation.Case{tc}
+					break
+				}
+			}
+		}
+		report := evaluation.Run(context.Background(), c, model, func(r evaluation.Result) {
+			fmt.Fprintf(os.Stderr, "%s: %s rubric=%v citations=%v %dms\n", r.Case.ID, r.Status, r.RubricPass, r.CitationValid, r.LatencyMS)
+		})
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(report)
+
+	case len(os.Args) == 2 && os.Args[1] == "constraints":
+		c := connect(addr)
+		defer c.Close()
+		if err := c.EnsureConstraints(); err != nil {
+			fatal(err)
+		}
+		fmt.Println("database key constraints are operational")
+	case len(os.Args) == 3 && os.Args[1] == "sync":
+		source, records, err := ingest.ReadManifest(os.Args[2])
+		if err != nil {
+			fatal(err)
+		}
+		c := connect(addr)
+		defer c.Close()
+		result, err := c.SyncSnapshot(source, records)
+		if err != nil {
+			fatal(err)
+		}
+		json.NewEncoder(os.Stdout).Encode(result)
 	case len(os.Args) == 3 && os.Args[1] == "import":
 		file, err := os.Open(os.Args[2])
 		if err != nil {
@@ -90,7 +161,7 @@ func main() {
 			fatal(err)
 		}
 		nodes, edges := data.Totals()
-		fmt.Printf("seeded graph \"tron\": %d nodes, %d edges\n", nodes, edges)
+		fmt.Printf("seeded graph %q: %d nodes, %d edges\n", graphName(), nodes, edges)
 		fmt.Print(data.Summary())
 	case len(os.Args) == 2 && os.Args[1] == "demo":
 		c := connect(addr)
@@ -109,8 +180,43 @@ func main() {
 			httpAddr = "127.0.0.1:8080"
 		}
 		mux := http.NewServeMux()
-		mux.Handle("/v1/", api.Handler(c))
-		mux.Handle("/", ui.Handler(c))
+		var model *agent.Ollama
+		if endpoint := os.Getenv("TRON_OLLAMA_URL"); endpoint != "" {
+			modelName := os.Getenv("TRON_OLLAMA_MODEL")
+			if modelName == "" {
+				modelName = "qwen3:4b-instruct"
+			}
+			var err error
+			model, err = agent.NewOllama(endpoint, modelName)
+			if err != nil {
+				fatal(err)
+			}
+		}
+		apiHandler := api.HandlerWithModel(c, model)
+		uiHandler := ui.Handler(c)
+		if authPath := os.Getenv("TRON_AUTH_FILE"); authPath != "" {
+			f, err := os.Open(authPath)
+			if err != nil {
+				fatal(err)
+			}
+			secured, closeAll, err := api.TenantHandler(addr, f, model)
+			f.Close()
+			if err != nil {
+				fatal(err)
+			}
+			defer closeAll()
+			apiHandler = secured
+			originalUI := uiHandler
+			uiHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.RawQuery != "" {
+					http.Error(w, "Use the authenticated workspace", http.StatusForbidden)
+					return
+				}
+				originalUI.ServeHTTP(w, r)
+			})
+		}
+		mux.Handle("/v1/", apiHandler)
+		mux.Handle("/", uiHandler)
 		fmt.Printf("tron listening on http://%s (Q&A UI at /, JSON API at /v1)\n", httpAddr)
 		if err := newServer(httpAddr, mux).ListenAndServe(); err != nil {
 			fatal(err)
@@ -121,6 +227,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       tron demo          run the five demo scenarios as pass/fail checks")
 		fmt.Fprintln(os.Stderr, "       tron serve         serve the Q&A UI + JSON API (TRON_HTTP_ADDR)")
 		fmt.Fprintln(os.Stderr, "       tron owner-set <service-key> <owner-key> <source-ref>  record a sourced ownership change")
+		fmt.Fprintln(os.Stderr, "       tron sync <manifest.json>  synchronize an explicit Markdown source snapshot")
+		fmt.Fprintln(os.Stderr, "       tron eval-model    evaluate local Ollama on the disposable labeled corpus")
+		fmt.Fprintln(os.Stderr, "       tron constraints   create and wait for per-label database uniqueness")
+		fmt.Fprintln(os.Stderr, "       tron identity-link <alias> <canonical> <source>  record a reviewed mapping")
 		fmt.Fprintln(os.Stderr, "       tron import <file.json>  upsert explicitly mapped source records")
 		os.Exit(2)
 	}
@@ -135,13 +245,13 @@ func newServer(addr string, h http.Handler) *http.Server {
 		Handler:           h,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      180 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 }
 
 func connect(addr string) *graph.Client {
-	c, err := graph.New(addr, "tron")
+	c, err := graph.New(addr, graphName())
 	if err != nil {
 		fatal(err)
 	}
@@ -151,4 +261,11 @@ func connect(addr string) *graph.Client {
 func fatal(err error) {
 	fmt.Fprintln(os.Stderr, "tron:", err)
 	os.Exit(1)
+}
+
+func graphName() string {
+	if value := os.Getenv("TRON_GRAPH"); value != "" {
+		return value
+	}
+	return "tron"
 }
