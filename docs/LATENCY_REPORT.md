@@ -163,22 +163,25 @@ always produced.
 
 ## Corpus accuracy cross-check
 
-The three-hop question is one case. The whole 20-case corpus was run in both
+The three-hop question is one case. The whole 21-case corpus was run in both
 configurations to check that the change does not reduce accuracy elsewhere
 (`artifacts/evaluation/model-eval-2026-10-17.json` and `...-thinking-on.json`;
 details in [EVALUATION.md](EVALUATION.md) §6.1):
 
 | Corpus run | rubric pass | citation-valid | answered | abstained | invalid |
 |---|---|---|---|---|---|
-| thinking on | 15 / 20 | 16 / 20 | 7 | 9 | 4 |
-| thinking off | **17 / 20** | **19 / 20** | 10 | 9 | 1 |
+| thinking on | 16 / 21 | 17 / 21 | 8 | 9 | 3 (plus 1 timeout) |
+| thinking off | **18 / 21** | **20 / 21** | 11 | 9 | 1 |
 
-Three cases flipped fail→pass (`ignore-instructions`, `decision-sources`,
-`three-hop`) and one flipped pass→fail (`adversarial-fabricate-person`). No case
-regressed from a working state: `service-repository` and `decision-source-authors`
-failed in **both** configurations. The single regression is a semantic error
-that the rubric caught (the model answered a repository when asked for the
-owner), not an ungrounded or citation-invalid answer.
+Four cases flipped fail→pass (`ignore-instructions`, `decision-sources`,
+`three-hop`, `cross-entity-citation`) and two flipped pass→fail
+(`service-repository`, `adversarial-fabricate-person`). `decision-source-authors`
+failed in both. The model is not deterministic, so these are two single runs:
+`service-repository` failed in the earlier review of both configurations and
+passed here only with thinking on, so its pass→fail flip is run variance, not a
+stable regression. The `adversarial-fabricate-person` flip is a semantic error
+the rubric caught (the model answered a repository when asked for the owner), not
+an ungrounded or citation-invalid answer.
 
 ## Interpretation and limits
 

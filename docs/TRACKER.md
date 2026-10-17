@@ -18,7 +18,7 @@ Updated 2026-10-17. This describes the local Track 03 build. The broader M0–M7
 | Read-only API | Verified | `/v1/ask`, `/v1/grounded`, `/v1/model`, `/v1/catalog`, health, seven graph operations; real HTTP integration tests |
 | Docker packaging and persistence | Implemented | Dockerfile, digest-pinned FalkorDB, named volume, append-only logging, health checks |
 | Model-loop cancellation and call bounds | Verified | `TestLoopStepBudgetAndInvalidMoves` |
-| Grounded local-model Q&A & review | Partial | `/v1/grounded`, Ollama adapter, bounded retrieval/citations; 18-case labeled corpus (10 preserved + 8 adversarial) with a pure rubric; measured run 17/20 rubric, 19/20 citation-valid; no entailment judge or baseline comparison |
+| Grounded local-model Q&A & review | Partial | `/v1/grounded`, Ollama adapter, bounded retrieval/citations; 21-case labeled corpus (10 preserved + 11 adversarial) with a pure rubric; measured run 18/21 rubric, 20/21 citation-valid (`qwen3:4b`, thinking off; thinking-on comparison 15/20→17/20 before the stale case); no entailment judge or baseline comparison |
 | Three-hop latency benchmark | Measured | `tron bench [warmup] [iterations]`; `artifacts/benchmarks/three-hop-latency*.json`; `LATENCY_REPORT.md`; 3 warm-up + 20 measured runs per config. Model generation is the bottleneck (`graph_ms` ~0.1–0.6 s); the `qwen3:4b` tag ran with thinking on by default |
 | Comparative baseline benchmark | Not implemented | Search/RAG baselines have not been run; earlier hard-coded example scores were removed |
 | Decision support & option comparison (M4) | Partial | `internal/rules`, `POST /v1/plan`, `tron plan`; validated caller-scored options, Pareto and weight perturbation; scores are not graph-sourced |

@@ -37,7 +37,7 @@ The three-hop latency is measured, not estimated: [`docs/LATENCY_REPORT.md`](doc
 records a 3-warm-up + 20-run benchmark before and after a change to the local-model
 request, with the raw JSON in [`artifacts/benchmarks/`](artifacts/benchmarks). The
 measured bottleneck is model generation, not the graph. The expanded grounded-answer
-corpus (18 labeled cases, including an adversarial suite) and its rubric are documented
+corpus (21 labeled cases, including an adversarial suite) and its rubric are documented
 in [`docs/EVALUATION.md`](docs/EVALUATION.md) §2.6 and §6. Model evaluation results and
 remaining gates are tracked separately; this is not a claim that the full M1–M7
 production roadmap is complete.

@@ -146,11 +146,6 @@ func TestCorpusIsComplete(t *testing.T) {
 		CatMultiHopGrounding,
 	} {
 		if cats[cat] == 0 {
-			// stale-or-superseded is exercised by the source-freshness test
-			// rather than a model case; everything else must have a case.
-			if cat == CatStaleSuperseded {
-				continue
-			}
 			t.Errorf("adversarial category %q has no case", cat)
 		}
 	}

@@ -63,6 +63,32 @@ func TestFixtureConflictIsReal(t *testing.T) {
 	}
 }
 
+// The stale/superseded fixture exposes exactly the superseded condition: the
+// closed-window claimant held the service in its era but is never current, and
+// the open-window claimant is the only current owner.
+func TestSupersededOwnerIsNotCurrent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires FalkorDB")
+	}
+	c := openTestGraph(t, "tron_eval_superseded_test")
+
+	past, err := c.FindOwner("stale-demo", time.Date(2025, 1, 20, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(past) != 1 || past[0].Key != "person:7" {
+		t.Fatalf("past era: got %+v, want person:7 only", past)
+	}
+
+	now, err := c.FindOwner("stale-demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(now) != 1 || now[0].Key != "person:8" {
+		t.Fatalf("current owner: got %+v, want person:8 only", now)
+	}
+}
+
 // The historical half-open rule is re-checked at and around the seed handoff
 // window: [2025-01-31T09:00:00Z, 2025-03-02T09:00:00Z) belongs to person:2,
 // the instant 2025-03-02T09:00:00Z belongs to person:1.

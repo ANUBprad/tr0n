@@ -273,7 +273,8 @@ expected words but an unknown/fabricated citation, a citation borrowed from a
 different entity, a forbidden term, and a wrong status, and asserts each is
 rejected — the rubric cannot pass on word-matching alone. `fixture.go` +
 `fixture_test.go` add and re-check the real-graph conditions the suite depends on:
-two incompatible live `OWNS` claims (conflict), the seed handoff boundary at the
+two incompatible live `OWNS` claims (conflict), a superseded ownership handoff
+whose closed window must never read as current, the seed handoff boundary at the
 half-open instant, an ambiguous name that must stay ambiguous, and the
 source-freshness contract (older observation refused, same-time different content
 refused, identical retry is a no-op, newer content accepted).
@@ -333,7 +334,7 @@ missing entities, ambiguous names, unsupported financial/salary questions, and
 an instruction to invent an owner. Each request is bounded by model/tool budgets.
 Raw JSON and trace output for the earlier 10-case run are saved in the root-level `model-evaluation-submission.*`
 files locally; they are not committed because they contain machine-specific
-latency/token counts and raw synthetic model responses. The expanded 20-case
+latency/token counts and raw synthetic model responses. The expanded 21-case
 run in §6.1 **is** committed under `artifacts/evaluation/` (its content is
 entirely synthetic; the machine-specific latency/token counts are labelled as
 such).
@@ -364,14 +365,12 @@ thinking trace disabled (`"think": false` on the Ollama request — see
 [LATENCY_REPORT.md](LATENCY_REPORT.md)). The two configurations are reported
 side by side; figures are never compared across a different corpus or model tag.
 
-**Corpus.** 20 cases = the ten original cases (ids preserved) plus ten
+**Corpus.** 21 cases = the ten original cases (ids preserved) plus eleven
 adversarial cases covering the §2.6 categories: conflicting sources, ambiguous
-entities, irrelevant evidence, historical boundaries (`valid_from` inclusive /
-`valid_to` exclusive), adversarial source content, unsupported questions,
-cross-entity citation, conflicting temporal facts, and multi-hop grounding.
-`stale-or-superseded` is exercised by the source-freshness integration test
-rather than a model case (a stale/older source is refused by the loader). Raw
-artifact: `artifacts/evaluation/model-eval-2026-10-17.json` (thinking off) and
+entities, irrelevant evidence, stale/superseded ownership, historical boundaries
+(`valid_from` inclusive / `valid_to` exclusive), adversarial source content,
+unsupported questions, cross-entity citation, conflicting temporal facts, and
+multi-hop grounding. Raw artifact: `artifacts/evaluation/model-eval-2026-10-17.json` (thinking off) and
 `...-thinking-on.json`.
 
 ```powershell
@@ -385,21 +384,27 @@ committed artifacts were re-encoded to UTF-8 with no change to their values.)
 
 | Run | rubric pass | citation-valid | answered | abstained | invalid | timeout | error |
 |---|---|---|---|---|---|---|---|
-| `qwen3:4b`, thinking on (default) | 15 / 20 | 16 / 20 | 7 | 9 | 4 | 0 | 0 |
-| `qwen3:4b`, thinking off | **17 / 20** | **19 / 20** | 10 | 9 | 1 | 0 | 0 |
+| `qwen3:4b`, thinking on (default) | 16 / 21 | 17 / 21 | 8 | 9 | 3 | 1 | 0 |
+| `qwen3:4b`, thinking off | **18 / 21** | **20 / 21** | 11 | 9 | 1 | 0 | 0 |
 
 `citation_valid` and `rubric_pass` are reported separately: a response can carry
 a structurally valid citation envelope and still be semantically wrong, so the
-rubric is the independent check. Disabling thinking improved all of rubric pass
-(+2), citation validity (+3), answered (+3), and invalid (−3).
+rubric is the independent check. Disabling thinking improved rubric pass (+2),
+citation validity (+3), answered (+3), invalid (−2), and removed the single
+timeout.
 
-Per-case changes (rubric): `ignore-instructions`, `decision-sources`, and
-`three-hop` flipped fail→pass; `adversarial-fabricate-person` flipped pass→fail;
-`service-repository` and `decision-source-authors` failed in both
-configurations. `service-repository` failing in both is a loop-non-convergence
-limitation of this 4B model on this host, not a regression of the change.
-`three-hop` stays unreliable across repeated runs (5/20 answered in the 20-run
-benchmark); the single pass here is not a reliability claim.
+The model is not deterministic, so this is **one run per configuration, not a
+sampling comparison**. Per-case changes (rubric): `ignore-instructions`,
+`decision-sources`, `three-hop`, and `cross-entity-citation` flipped fail→pass;
+`service-repository` and `adversarial-fabricate-person` flipped pass→fail;
+`decision-source-authors` failed in both configurations and the new
+`superseded-owner` case passed in both. `service-repository` and
+`decision-source-authors` are loop-non-convergence cases for this 4B model (it
+repeats a retrieval until the step budget is exhausted); both also failed in the
+earlier 20-case review, and `service-repository` passing here only with thinking
+on shows the outcome is run-dependent — neither is read as a regression of the
+`think` change. `three-hop` stays unreliable across repeated runs (5/20 answered
+in the 20-run benchmark); the single pass here is not a reliability claim.
 
 `adversarial-fabricate-person` is instructive: with thinking off the model
 followed a real relationship but answered with a repository instead of the owner
