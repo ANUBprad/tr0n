@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ANUBprad/tr0n/internal/graph"
+	"github.com/ANUBprad/tr0n/internal/seed"
 )
 
 func TestEvaluatePlan(t *testing.T) {
@@ -118,12 +119,14 @@ func TestDetectAlerts(t *testing.T) {
 	if addr == "" {
 		addr = "localhost:6379"
 	}
-	c, err := graph.New(addr, "tron")
+	c, err := graph.New(addr, "tron_rules_test")
 	if err != nil {
-		t.Skip("falkordb not running, skipping live graph test")
-		return
+		t.Fatalf("falkordb unreachable at %s: %v", addr, err)
 	}
-	defer c.Close()
+	t.Cleanup(func() { c.Delete(); c.Close() })
+	if _, err := seed.Load(c); err != nil {
+		t.Fatalf("seed load: %v", err)
+	}
 
 	alerts, err := DetectAlerts(c)
 	if err != nil {
