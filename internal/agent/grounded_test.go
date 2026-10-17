@@ -241,7 +241,48 @@ func TestAuthorTraversalUsesOnlyReturnedNodes(t *testing.T) {
 	if !ok || key != "pr:x" || relation != "AUTHORED" {
 		t.Fatalf("%s %s %v", key, relation, ok)
 	}
+	// A decision reaches its authors through SUPPORTED_BY source documents.
+	decision := graph.EvidenceContext{Entity: &graph.NodeRef{Key: "decision:3", Label: "Decision"}, Facts: []graph.EvidenceFact{{Entity: "decision:3", Relation: "SUPPORTED_BY", Direction: "out", Neighbor: graph.NodeRef{Key: "doc:3", Label: "Document"}}}}
+	key, relation, ok = nextAuthorRetrieval([]graph.EvidenceContext{decision}, "decision:3")
+	if !ok || key != "doc:3" || relation != "AUTHORED" {
+		t.Fatalf("%s %s %v", key, relation, ok)
+	}
+	// Once an AUTHORED edge is in evidence the traversal stops - it never walks
+	// past the destination or invents another hop.
+	doc := graph.EvidenceContext{Entity: &graph.NodeRef{Key: "doc:3", Label: "Document"}, Facts: []graph.EvidenceFact{{Entity: "doc:3", Relation: "AUTHORED", Direction: "in", Neighbor: graph.NodeRef{Key: "person:40", Label: "Person"}}}}
+	if key, relation, ok := nextAuthorRetrieval([]graph.EvidenceContext{decision, doc}, "decision:3"); ok {
+		t.Fatalf("traversal continued past AUTHORED: %s %s", key, relation)
+	}
 	if !asksForAuthorship("Who authored this pull request?") || asksForAuthorship("What repository is linked?") {
 		t.Fatal("author intent classification")
+	}
+}
+
+// TestProgressGuardPlan locks the deterministic advance/abstain decision without
+// a graph or a model: an author question follows observed edges, a non-author
+// question broadens the resolved entity to a new scope, a non-ok context is
+// never broadened, and nothing is returned once every move is exhausted.
+func TestProgressGuardPlan(t *testing.T) {
+	decision := graph.EvidenceContext{Status: graph.EvidenceStatusOK, Entity: &graph.NodeRef{Key: "decision:3", Label: "Decision"}, Facts: []graph.EvidenceFact{{Entity: "decision:3", Relation: "SUPPORTED_BY", Direction: "out", Neighbor: graph.NodeRef{Key: "doc:3", Label: "Document"}}}}
+
+	entity, relations, found := nextProgressRetrieval([]graph.EvidenceContext{decision}, "decision:3", "Who authored the sources of this decision?", map[string]bool{})
+	if !found || entity != "doc:3" || len(relations) != 1 || relations[0] != "AUTHORED" {
+		t.Fatalf("author continuation: %q %v %v", entity, relations, found)
+	}
+	entity, relations, found = nextProgressRetrieval([]graph.EvidenceContext{decision}, "decision:3", "Which documents support this decision?", map[string]bool{})
+	if !found || entity != "decision:3" || relations != nil {
+		t.Fatalf("broaden fallback: %q %v %v", entity, relations, found)
+	}
+	if _, _, found := nextProgressRetrieval([]graph.EvidenceContext{{Status: graph.EvidenceStatusNotFound}}, "", "Who owns this service?", map[string]bool{}); found {
+		t.Fatal("a non-ok context must never be broadened")
+	}
+	if _, _, found := nextProgressRetrieval([]graph.EvidenceContext{decision}, "decision:3", "Which documents support this decision?", map[string]bool{"decision:3\x00": true}); found {
+		t.Fatal("an exhausted scope must not be retried")
+	}
+	if _, _, found := nextProgressRetrieval([]graph.EvidenceContext{decision}, "decision:3", "Who authored the sources?", map[string]bool{"doc:3\x00AUTHORED": true}); !found {
+		t.Fatal("an exhausted author hop should fall back to broadening once")
+	}
+	if _, _, found := nextProgressRetrieval([]graph.EvidenceContext{decision}, "decision:3", "Who authored the sources?", map[string]bool{"doc:3\x00AUTHORED": true, "decision:3\x00": true}); found {
+		t.Fatal("nothing remains once every move is exhausted")
 	}
 }
