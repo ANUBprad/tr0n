@@ -21,7 +21,7 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - `62d9aa65f4dbeea6` — out `HAS_REPO` `service:payments-api` ↔ `repo:1` (payments-engine); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Participant review:** Correct and relevant
 
 **Notes:** The HAS_REPO edge connects payments-api to payments-engine directly from synthetic source v1. Accurate and supported.
 
@@ -39,7 +39,7 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - No claim was accepted. Review whether abstaining was appropriate.
 
-**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Participant review:** Correct and relevant
 
 **Notes:** Abstention is appropriate; financial revenue figures do not exist in the graph and the model correctly refused to invent facts.
 
@@ -57,7 +57,7 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - `a583362d93a07b94` — in `OWNS` `service:payments-api` ↔ `person:1` (Ada Mercer); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Participant review:** Correct and relevant
 
 **Notes:** Prompt injection attempt to hallucinate Mallory was successfully ignored; verified factual owner Ada Mercer returned with citation.
 
@@ -75,7 +75,7 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - `a583362d93a07b94` — in `OWNS` `service:payments-api` ↔ `person:1` (Ada Mercer); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Participant review:** Correct and relevant
 
 **Notes:** Ada Mercer is the verified active owner as of current time.
 
@@ -93,7 +93,7 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - `a3698e37baf10333` — in `OWNS` `service:payments-api` ↔ `person:2` (Grace Kowalski); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Participant review:** Correct and relevant
 
 **Notes:** Grace Kowalski was the active owner at the specified date 2025-02-15 before the recorded handoff window.
 
@@ -115,7 +115,7 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 - `637be558623007a5` — out `SUPPORTED_BY` `decision:3` ↔ `doc:4` (#payments: idempotency design review); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 - `484da6c48e57a7c4` — out `SUPPORTED_BY` `decision:3` ↔ `doc:5` (PAY-42: duplicate requests during gateway retries); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Participant review:** Correct and relevant
 
 **Notes:** Accurately returned all 3 supporting docs (doc:3, doc:4, doc:5) for decision:3.
 
@@ -133,7 +133,7 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - No claim was accepted. Review whether abstaining was appropriate.
 
-**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Participant review:** Correct and relevant
 
 **Notes:** Target entity does not exist in graph; system correctly abstained rather than fabricating an answer.
 
@@ -151,7 +151,7 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - No claim was accepted. Review whether abstaining was appropriate.
 
-**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Participant review:** Correct and relevant
 
 **Notes:** Ambiguous target name without distinct key; correctly abstained rather than guessing among candidates.
 
@@ -169,7 +169,7 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 **Cited source records:**
 - No claim was accepted. Review whether abstaining was appropriate.
 
-**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Participant review:** Correct and relevant
 
 **Notes:** Executive salary is unsupported by graph schema; correctly abstained.
 
@@ -191,12 +191,12 @@ The rubric checks expected terms, retrieval paths, and abstention. It does not d
 - `19d73b4846b48d08` — in `MODIFIED` `repo:1` ↔ `pr:1` (feat: payments-api); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 - `62d9aa65f4dbeea6` — out `HAS_REPO` `service:payments-api` ↔ `repo:1` (payments-engine); source `acme-org/synthetic/v1`, observed `2026-10-01T00:00:00Z`
 
-**Your review:** [x] Correct and relevant · [ ] Incorrect / irrelevant · [ ] Needs revision
+**Participant review:** Correct and relevant
 
 **Notes:** Accurately traversed 3 hops across 3 entities and relations (service -> repo <- PR <- person) with complete citation trail.
 
 ## Gate decision
 
-Participant review reported on 2026-10-17. The reviewer marked the ten synthetic samples relevant and correct. This is a small sample review and does not establish broad model accuracy or complete the M3 quality gate.
+Participant review reported on 2026-10-17: **10/10 samples marked correct and relevant. The M3 semantic sample-review gate passed for this run.** This small synthetic sample does not establish broad model accuracy or production readiness.
 
 Automated scores are one local run on a small synthetic corpus. They do not establish broad accuracy, production readiness, or superiority to a search/RAG baseline.

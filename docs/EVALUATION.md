@@ -37,7 +37,7 @@ cost/latency — the parts that don't exist yet.
 |---|---|---|---|---|
 | E1 | **Entity resolution** | pairs of records known to be same/different | merge correctness, no false merges | PARTIAL (2026-10-16: deterministic tiers `TestResolveEntity`; adversarial contract suite `TestResolveEntityContract`; loader rejects cross-load/label duplicate keys `TestDuplicateKeyAcrossLoadsIsRejected`; multi-source merge deferred to M2) |
 | E2 | **Multi-hop graph queries** | fixtures answerable only via ≥3 hops | the product thesis, as a test | PARTIAL (seed contract test) |
-| E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PARTIAL (10 synthetic cases were participant-reviewed; automated rubric and citation structure do not prove general entailment; no valid competing baselines) |
+| E3 | **Source-grounded correctness** | Q/A with known ground-truth answers + sources | answers match evidence | PARTIAL (participant semantic review passed 10/10 synthetic samples for the 2026-10-17 run; broader entailment evaluation and valid competing baselines remain open) |
 | E4 | **Citation support** | answers + their claims | every claim cites a valid path (`Answer.Validate`) | IMPLEMENTED (structural) |
 | E5 | **Temporal accuracy** | time-shifted fixtures (owner 2026 vs 2027) | correct as-of results | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindOwnerAsOf`/`TestFindExpertsAsOf`, `internal/graph` `TestLoadEdgesNormalizesOffsetToUTC`, `internal/api` `TestEndpoints/owner`+`/experts`, seed handoff fixture; see §2.2 |
 | E6 | **Contradiction detection** | injected conflicting state-relation claims (overlapping half-open windows) + non-conflicting decoys | both surfaced, none hidden; nothing extra flagged | IMPLEMENTED (2026-10-16): `internal/graph` `TestFindConflicts`, `internal/api` `TestEndpoints/conflicts`; scope decided 2026-10-15, see §2.1 |
@@ -248,8 +248,9 @@ are skipped under `-short`):
   now selects IDs from retrieved facts; the server renders the canonical endpoints
   and relationship, preventing the model from relabeling an `OWNS` edge as a salary
   or job-title fact. The small rubric corpus measures expected terms, retrieval
-  paths, and abstention, but it is not an entailment judge. Participant review and
-  comparison baselines remain open. A valid evidence reference is a necessary
+  paths, and abstention, but it is not an entailment judge. Participant review
+  passed on ten synthetic samples; broader semantic evaluation and comparison
+  baselines remain open. A valid evidence reference is a necessary
   precondition, not sufficient evidence of question relevance. **Absence** claims ("no `OWNS` edge")
 have no `EvidenceFact` to cite and remain outside the contract (operation-
 reference string path); recorded in `OPEN_QUESTIONS.md`.
@@ -311,16 +312,17 @@ claim counts, latency, and token use. `citation_passed` includes abstention
 envelopes, so it must not be read as an answer-accuracy score. The stricter
 `valid_claim_count/claim_count` checks nonempty claim envelopes only; neither
 proves relevance. Latency varies with GPU/CPU offload and cold starts; hardware
-cost is not estimated. Participant review notes for [the answer samples](MODEL_REVIEW.md)
-are recorded, but do not complete the M3 quality gate.
+cost is not estimated. Participant semantic review for [the answer samples](MODEL_REVIEW.md)
+passed 10/10 on 2026-10-17, completing the M3 sample-review gate for this run.
+This does not establish broad model accuracy or production readiness.
 
 The 2026-10-17 run passed the automated term/path/abstention rubric in 10/10
 cases, with 10/10 structurally valid envelopes and 10 selected claims with
 valid evidence IDs. It used 20 local model calls and reported 15,193 input and
 658 output tokens. Per-question latency was 947–19,227 ms (median 2,359 ms;
 nearest-rank p95 19,227 ms). One three-hop case accounts for the long tail.
-These figures describe this single run and this GPU/CPU setup only. Semantic
-participant review was recorded; broader semantic evaluation is still open.
+These figures describe this single run and this GPU/CPU setup only. Broader
+semantic evaluation beyond this synthetic sample remains open.
 
 ## 7. What is explicitly NOT claimed yet
 
@@ -329,7 +331,7 @@ participant review was recorded; broader semantic evaluation is still open.
   measurements, not a representative workload or cost estimate.
 - The Markdown adapter is a bounded local snapshot reader, not a live Slack,
   ticketing, or document-service connector.
-- A participant reviewed the ten synthetic answer samples; broader semantic evaluation and keyword/RAG/no-graph LLM baselines remain open.
+- A participant reviewed the ten synthetic answer samples and marked 10/10 correct and relevant; broader semantic evaluation and keyword/RAG/no-graph LLM baselines remain open.
 - The demo's pass/fail checks (`cmd/tron/demo.go`) prove that operations
   *answer*, not that the answers are *correct vs a baseline*.
 
