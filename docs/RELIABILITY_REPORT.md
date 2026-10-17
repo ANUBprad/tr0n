@@ -142,8 +142,10 @@ pass.
 Percentiles are nearest-rank over the 63 results; `graph_ms` and `model_ms` are
 nested inside the agent loop and must not be summed. Model decisions totalled
 141 over 63 answers (average 2.24, max 4) — below the six-step budget in every
-case. The single 99-second outlier is a cold model load inside the first case of
-trial 1; it is not excluded here, and it is not used for any claim.
+case. Two outliers (both in trial 3: `three-hop` 99,074 ms, `decision-source-authors`
+80,045 ms) are **kept in** the distributions above, not trimmed. They are model
+time, not model loading, and their cause is not measured — consistent with CPU
+contention on this shared host, but that is not asserted.
 
 ## 4. How to read these numbers
 
