@@ -67,38 +67,51 @@ is enforced, not aspirational — the deterministic core
 
 ## 4. Current vs near-term vs long-term
 
+> **Current competition build (2026-10-17):** The deterministic five-workflow
+> app, structured import and Markdown snapshots, bounded local Ollama retrieval,
+> citation validation, and tenant graph selection exist. The optional model path
+> is evaluated on a small synthetic corpus; review of ten samples is recorded,
+> while broad semantic evaluation and comparative baselines remain open. See [`TRACKER.md`](TRACKER.md) and
+> [`EVALUATION.md`](EVALUATION.md). The milestones below retain the original
+> product horizon and are not a claim that all of it has shipped.
+
 | Horizon | Definition | State |
 |---|---|---|
-| **CURRENT (IMPLEMENTED)** | Deterministic graph operations + provenance + read-only JSON API + server-rendered Q&A over synthetic data. No LLM required. | Built (`cmd/tron`, `internal/{graph,knowledge,api,agent,seed,ui}`) |
-| **NEAR-TERM (next milestones)** | Real ingestion, trustworthy organizational memory, evidence-grounded reasoning, decision support, controlled action execution, comparative evaluation. | Proposed — see [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md) |
+| **CURRENT (IMPLEMENTED / PARTIAL)** | Deterministic graph operations + provenance + bounded local-model retrieval and citations over synthetic and explicitly imported snapshots. No LLM required for deterministic workflows. | See [`TRACKER.md`](TRACKER.md) |
+| **NEAR-TERM (next milestones)** | Broader measured answer quality, decision support, controlled action execution, comparative evaluation. | Partial / proposed — see [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md) |
 | **LONG-TERM (VISION)** | Proactive organizational intelligence, multi-source synchronization, permission-aware context, authorized cross-system actions. | Proposed — not scheduled as committed work |
 
 ### What CURRENT actually does (verified)
 
-- Six deterministic graph operations over FalkorDB: `FindOwner`,
+- Seven deterministic graph operations over FalkorDB: `FindOwner`,
   `FindExperts`, `TraceDecision`, `FindRelatedIncidents`, `TraceEvidence`,
-  `ResolveEntity` (`internal/graph/graph.go`).
+  `ResolveEntity`, `FindConflicts` (`internal/graph`).
 - Layered knowledge enforcement: FACT / INFERENCE / RECOMMENDATION, with
   `Answer.Validate` refusing untagged or unevidenced claims
   (`internal/knowledge/answer.go`).
 - Deterministic expertise ranking `expertise/v1`
   (`internal/knowledge/expertise.go`).
-- Read-only JSON API, 7 endpoints (`internal/api/api.go`).
+- Read-only JSON API with health/catalog, deterministic and grounded ask, model
+  status, and seven graph operations (`internal/api/api.go`).
 - Server-rendered Q&A UI with evidence panels (`internal/ui/ui.go`).
-- Provider-agnostic agent loop with a `Decide` seam
-  (`internal/agent/agent.go`); **no LLM provider is wired in**.
-- Deterministic synthetic seed graph, 50 people / 339 nodes / 955 edges
+- Provider-agnostic agent loop with local Ollama adapter
+  (`internal/agent/agent.go`, `internal/agent/ollama.go`); answer-quality
+  evaluation remains partial (`docs/EVALUATION.md`).
+- Deterministic synthetic seed graph, 50 people / 339 nodes / 958 edges
   (`internal/seed/seed.go`, `README.md`).
-- `tron demo` pass/fail verification of five scenarios (`cmd/tron/demo.go`).
+- `tron demo` pass/fail verification of five workflows, temporal ownership,
+  and evidence drill-down (`cmd/tron/demo.go`).
 
 ### What is deliberately NOT built (verified absent)
 
-- No ingestion pipeline (`internal/ingest` is documented but does not exist).
-- No LLM provider adapter and no natural-language free-form Q&A.
+- No live private-service connectors or arbitrary-prose fact extraction;
+  ingestion is explicit and uses structured records or declared Markdown files.
+- No hosted model provider or unrestricted free-form factual synthesis.
 - No write path: API and agent are read-only w.r.t. the graph.
 - No action execution, approval workflow, or audit log.
-- No authentication/authorization beyond local loopback binding.
-- No multi-source identity resolution (single synthetic source only).
+- Tenant graph selection is supported by server-owned bearer credentials, but
+  per-document authorization and production identity management are not.
+- No multi-source identity merge; aliases require an explicit reviewed mapping.
 
 ## 5. Flagship demonstration
 

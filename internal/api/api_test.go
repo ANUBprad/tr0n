@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ANUBprad/tr0n/internal/actions"
 	"github.com/ANUBprad/tr0n/internal/graph"
 	"github.com/ANUBprad/tr0n/internal/seed"
 )
@@ -69,6 +71,16 @@ func TestEndpoints(t *testing.T) {
 		return out
 	}
 
+	t.Run("ask", func(t *testing.T) {
+		answer := post(t, "/v1/ask", `{"question":"Why did we choose Redis over Kafka?"}`, http.StatusOK)
+		if !strings.Contains(answer["answer"].(string), "24-hour") || answer["intent"] != "decision" {
+			t.Fatalf("bad question response: %v", answer)
+		}
+		post(t, "/v1/ask", `{"question":""}`, http.StatusBadRequest)
+		post(t, "/v1/ask", `{"question":"Who owns it?","as_of":"yesterday"}`, http.StatusBadRequest)
+		post(t, "/v1/ask", `{"question":"Why Redis?","as_of":"2026-01-01T00:00:00Z"}`, http.StatusBadRequest)
+		post(t, "/v1/ask", `{"question":"Who owns it?","unexpected":1}`, http.StatusBadRequest)
+	})
 	t.Run("owner", func(t *testing.T) {
 		owners := postList(t, "/v1/owner", `{"target":"payments-api"}`, http.StatusOK)
 		if len(owners) != 1 {
@@ -352,4 +364,107 @@ func leaks(body string) bool {
 		}
 	}
 	return false
+}
+
+func TestPlanAlertsActionsEndpoints(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test needs FalkorDB; use -short to skip")
+	}
+	addr := os.Getenv("TRON_FALKOR_ADDR")
+	if addr == "" {
+		addr = "localhost:6379"
+	}
+	c, err := graph.New(addr, "tron_api_plan_test")
+	if err != nil {
+		t.Fatalf("falkordb unreachable at %s: %v", addr, err)
+	}
+	t.Cleanup(func() { c.Delete(); c.Close() })
+	if _, err := seed.Load(c); err != nil {
+		t.Fatalf("seed load: %v", err)
+	}
+	srv := httptest.NewServer(Handler(c))
+	t.Cleanup(srv.Close)
+
+	// 1. POST /v1/plan
+	planBody := `{"context":"Idempotency store selection","options":[{"id":"opt:1","name":"Redis","cost_score":0.2,"risk_score":0.2,"perf_score":0.9,"ease_score":0.8}]}`
+	resp, err := http.Post(srv.URL+"/v1/plan", "application/json", strings.NewReader(planBody))
+	if err != nil {
+		t.Fatalf("POST /v1/plan: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("POST /v1/plan status = %d, want 200", resp.StatusCode)
+	}
+	var planOut struct {
+		RuleID        string `json:"rule_id"`
+		RecommendedID string `json:"recommended_id"`
+	}
+	json.NewDecoder(resp.Body).Decode(&planOut)
+	if planOut.RuleID != "decision_eval/v1" || planOut.RecommendedID != "opt:1" {
+		t.Errorf("unexpected plan output: %+v", planOut)
+	}
+
+	// 2. GET /v1/alerts
+	respAlerts, err := http.Get(srv.URL + "/v1/alerts")
+	if err != nil {
+		t.Fatalf("GET /v1/alerts: %v", err)
+	}
+	defer respAlerts.Body.Close()
+	if respAlerts.StatusCode != http.StatusOK {
+		t.Errorf("GET /v1/alerts status = %d, want 200", respAlerts.StatusCode)
+	}
+
+	// Action routes require server-owned role credentials; the default handler has none.
+	for _, path := range []string{"/v1/actions/propose", "/v1/actions/approve", "/v1/actions/execute"} {
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+path, strings.NewReader(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("POST %s: %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("POST %s status = %d, want 403 without configured role credentials", path, resp.StatusCode)
+		}
+	}
+}
+
+func TestActionRoutesUseAuthenticatedRoles(t *testing.T) {
+	h := Handler(nil)
+	call := func(role string, path string, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		if role != "" {
+			r = r.WithContext(context.WithValue(r.Context(), principalKey{}, Credential{Actor: "server:actor", Role: role}))
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	if got := call("", "/v1/actions/propose", `{}`).Code; got != http.StatusForbidden {
+		t.Fatalf("unauthenticated propose status=%d, want 403", got)
+	}
+	if got := call("reader", "/v1/actions/propose", `{}`).Code; got != http.StatusForbidden {
+		t.Fatalf("reader propose status=%d, want 403", got)
+	}
+	if got := call("requester", "/v1/actions/propose", `{"action_type":"draft_ticket","target":"incident:1","parameters":{},"principal":"attacker:forged"}`).Code; got != http.StatusBadRequest {
+		t.Fatalf("caller-supplied principal should be rejected, got %d", got)
+	}
+	proposed := call("requester", "/v1/actions/propose", `{"action_type":"draft_ticket","target":"incident:1","parameters":{"body":"Draft"}}`)
+	if proposed.Code != http.StatusOK {
+		t.Fatalf("requester propose status=%d, want 200: %s", proposed.Code, proposed.Body)
+	}
+	var result struct {
+		Proposal actions.ProposedAction `json:"proposal"`
+	}
+	if err := json.Unmarshal(proposed.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Proposal.Principal != "server:actor" {
+		t.Fatalf("proposal principal=%q, want server-owned identity", result.Proposal.Principal)
+	}
+	if got := call("requester", "/v1/actions/execute", `{}`).Code; got != http.StatusForbidden {
+		t.Fatalf("requester execute status=%d, want 403", got)
+	}
 }

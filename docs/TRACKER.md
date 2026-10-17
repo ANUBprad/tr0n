@@ -1,123 +1,67 @@
-# TRON — Implementation Tracker
+# TRON — implementation tracker
 
-**Status**: Canonical. Live status of milestones, components, and backlog.
-**Last updated**: 2026-10-16.
-**Related**: [`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md),
-[`EVALUATION.md`](EVALUATION.md), [`RULES.md`](RULES.md).
+Updated 2026-10-17. This describes the local Track 03 build. The broader M0–M7 production roadmap remains in IMPLEMENTATIONPLAN.md; its proposed features are not submission claims.
 
-> **Status reflects evidence, not intent.** A component is `Verified` only when
-> a committed test/command demonstrates it. Update a row only with a code path
-> or PR reference. Never mark `Implemented` because something was designed.
-
-## Status legend
-
-| Status | Meaning |
-|---|---|
-| **Verified** | implemented and demonstrated by a committed test/command |
-| **Implemented** | code exists, no direct test evidence yet |
-| **In progress** | partially built |
-| **Planned** | scheduled in a milestone, not started |
-| **Not started** | no work, not yet scheduled |
-
-## Milestones
-
-| ID | Milestone | Status | Evidence |
-|---|---|---|---|
-| M0 | Architecture & repository baseline | **Verified** | `tron demo` 7/7; 12 test files; decision-log |
-| M1 | Trustworthy organizational memory | **In progress** | Slice 1: schema/provenance + fact-write contract (`internal/graph/load.go`); **slice 2 (2026-10-16)**: E6 contradiction detection (`graph.FindConflicts` + `POST /v1/conflicts`); **slice 3 (2026-10-16)**: E5 temporal as-of — optional `as_of` on `FindOwner`/`FindExperts` + `/v1/owner`/`/v1/experts`, canonical-UTC window normalization, empty-window rejection; **slice 4 (2026-10-16)**: E1 loader cross-load/label duplicate-key guard + runnable identity fixture; staleness **documented** (no threshold); **slice 5 (2026-10-16)**: E1 contract audit + adversarial suite (`TestResolveEntityContract`); key-shaped/name-tier ambiguity **recorded, not fixed**; **outstanding**: multi-source identity merge (M2); E1 PARTIAL, E5/E6 IMPLEMENTED |
-| M2 | Data ingestion & synchronization | **Not started** | only `internal/seed` writes facts |
-| M3 | Evidence-grounded reasoning | **In progress** | agent loop + 7 ops + `graph.AssembleEvidence` (bounded context assembly) + `Answer.Validate`; **source-grounded contract (2026-10-16)**: `graph.GroundedAnswer` binds an answer's FACT claims to cited `EvidenceFact` IDs (stable content-derived id), refuses fabricated/cross-entity/cross-relation citations and any FACT claim on a non-`ok` context; `internal/graph/grounded.go` + `grounded_test.go`; no LLM provider wired |
-| M4 | Decision support | **Not started** | — |
-| M5 | Controlled action execution | **Not started** | read-only today |
-| M6 | Proactive organizational intelligence | **Not started** | — |
-| M7 | Production readiness & evaluation | **Not started** | — |
-
-## Component tracker
-
-### Interface & application
-| Component | File | Status | Gaps |
-|---|---|---|---|
-| CLI core | `cmd/tron/main.go` | **Implemented** | owner/seed/demo/serve only; source/action groups planned |
-| Health / API server | `internal/api/api.go` | **Verified** | 7 read ops (incl. `POST /v1/conflicts`); `owner`/`experts` accept optional `as_of`; no auth |
-| Web UI | `internal/ui/ui.go`, `page.html` | **Implemented** | 5 fixed questions; no open Q&A |
-| Demo harness | `cmd/tron/demo.go` | **Verified** | 7 checks pass/fail (5 scenarios + temporal as-of + evidence) |
-
-### Knowledge model
-| Component | File | Status | Gaps |
-|---|---|---|---|
-| Graph layer | `internal/graph/graph.go` | **Verified** | one global mutex (`ponytail:` ceiling) |
-| Fact-write contract | `internal/graph/load.go` | **Verified** | key shape, provenance minimum, referential integrity, temporal windows; `internal/graph/load_test.go` |
-| Temporal as-of queries | `internal/graph` | **Verified** | optional `as_of` on `FindOwner`/`FindExperts` (half-open `valid_from <= as_of < valid_to`); loader normalizes windows to canonical UTC; sentinel default = current; `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC` (2026-10-16) → E5 IMPLEMENTED |
-| Key uniqueness enforcement | `internal/graph/load.go` | **Verified (loader)** | DB-level constraint still **deferred (2026-10-15)**; since 2026-10-16 the loader rejects any batch key already present in the graph (across loads *and* labels), not just in-batch — non-destructive, no merge (`TestDuplicateKeyAcrossLoadsIsRejected`); non-unique index remains; revisit a DB constraint before M2 (`planning/decision-log.md`, `OPEN_QUESTIONS.md`) |
-| Entity resolution | `internal/graph/graph.go` (`ResolveEntity`) | **Verified** | single-source; no cross-source merge (`TestResolveEntity`, adversarial `TestResolveEntityContract`, `TestDuplicateKeyAcrossLoadsIsRejected`) |
-| Expertise | `internal/knowledge/expertise.go` | **Verified** | weights unvalidated (R10) |
-| Decision trace | `internal/knowledge/decision.go` | **Verified** | — |
-| Incidents | `internal/knowledge/incidents.go` | **Verified** | — |
-| Contradiction detection | `internal/graph/graph.go` | **Verified** | `FindConflicts` (`contradiction/v1`, state relations only, `OWNS` exclusive) + `POST /v1/conflicts`; `TestFindConflicts`, `TestEndpoints/conflicts` (2026-10-16) |
-| Staleness surfacing | — | **Documented (no code)** | Freshness is `observed_at`-based and already returned on every `Provenance`; no universal stale threshold is defined (by decision 2026-10-16) — labeling a fact stale would need an explicit policy (`docs/SCHEMA.md` §5/§6, `planning/decision-log.md`) |
-
-### Reasoning
-| Component | File | Status | Gaps |
-|---|---|---|---|
-| Agent loop + tool schema | `internal/agent/agent.go` | **Implemented** | no provider adapter |
-| Answer validation / layering | `internal/agent`, `internal/knowledge` | **Verified** | — |
-| Source-grounded answer contract | `internal/graph/grounded.go` | **Verified** | 2026-10-16: `GroundedAnswer` + stable `EvidenceFact.ID`; a FACT claim must cite a carried fact matching its subject/relation, and a non-`ok` context (`not_found`/`ambiguous`/`empty`/`over_budget`) can never back one; `TestGroundedAnswer*`; **structural only** — no entailment/correctness check, absence claims ungrounded (documented) |
-| LLM provider adapter | — | **Not started** | M3; ADR required |
-| Retrieval/context assembly | `internal/graph/evidence.go` | **Implemented** | M3, 2026-10-16: `AssembleEvidence` + `assemble_context` tool — resolve (never picks among candidates), 1-hop edges scoped to optional relations, half-open `as_of` filter on state relations, **total** store-independent sort, count/size bounds, explicit truncation + explicit `not_found`/`ambiguous`/`empty`/`over_budget`; audited 2026-10-16 (over-budget outcome + total order fixed); permission-aware drop + relevance/recency ranking still PROPOSED |
-| Rules engine | — | **Not started** | M4 |
-
-### Ingestion
-| Component | File | Status | Gaps |
-|---|---|---|---|
-| Seed generator | `internal/seed/*` | **Verified** | synthetic, wipe+reload only |
-| Ingestion pipeline | `internal/ingest` (new) | **Not started** | M2 |
-| Sync/cursors/delta | `internal/sync` (new) | **Not started** | M2 |
-| Document store | — | **Not started** | M2 |
-
-### Actions
-| Component | File | Status | Gaps |
-|---|---|---|---|
-| Read-only operation boundary | `internal/api`, `internal/agent` | **Verified** | no writes by design |
-| Authorization gate | — | **Not started** | M5 |
-| Executor + idempotency + verification | — | **Not started** | M5 |
-| Audit log | — | **Not started** | M5 |
-
-### Platform / security
-| Component | Status | Gaps |
+| Capability | Status | Evidence |
 |---|---|---|
-| Loopback binding (FalkorDB + HTTP) | **Verified** | `compose.yaml`, `cmd/tron/main.go` |
-| Strict JSON + body cap + timeouts | **Verified** | `internal/api/api.go`, `cmd/tron/main.go` |
-| Authentication & authorization | **Not started** | M7 |
-| Tenant isolation | **Planned** | designed, unexercised |
-| Backup / retention | **Not started** | R6 |
-| CI (lint/test gates) | **Not started** | `EVALUATION.md` hard gates |
+| FalkorDB model and five core traversals | Verified | Live graph suite; `tron demo` 7/7 |
+| Temporal ownership and conflict detection | Verified | Graph/API tests; current reads now use actual time, historical provenance includes valid_to |
+| Current-owner correction for scheduled handoffs | Verified | `TestCurrentOwnerIsNotFutureOwner` |
+| Question router and clarification | Verified | `internal/agent/ask.go`; `TestQuestionRouting`, `TestAskLiveGraph` |
+| Decision rationale, ADR/chat/ticket source content | Verified | Seed + `TestAskLiveGraph`; source records inspectable in UI |
+| Handoff draft | Verified | `Ask` composes evidence and a Markdown draft; never sends or assigns work |
+| Source freshness display | Implemented | Source observation timestamps shown without a universal stale threshold |
+| Structured file import and refresh | Verified | `ImportRecord`; idempotency, content/link updates, stale/collision rejection tests |
+| Sourced ownership updates | Verified | `RecordOwner`; atomic close/open, history, no-op retry, invalid/backdated rejection tests |
+| Cross-load duplicate identity guard | Verified | `TestDuplicateKeyAcrossLoadsIsRejected`; per-client single-writer guard, external writers not constrained |
+| Browser workspace | Implemented and browser-checked | `workspace.html`, `app.js`, `app.css`; typed questions, context picker, sources, SVG context and handoff download |
+| Read-only API | Verified | `/v1/ask`, `/v1/grounded`, `/v1/model`, `/v1/catalog`, health, seven graph operations; real HTTP integration tests |
+| Docker packaging and persistence | Implemented | Dockerfile, digest-pinned FalkorDB, named volume, append-only logging, health checks |
+| Model-loop cancellation and call bounds | Verified | `TestLoopStepBudgetAndInvalidMoves` |
+| Grounded local-model Q&A & review | Partial | `/v1/grounded`, Ollama adapter, bounded retrieval/citations; ten synthetic samples reviewed; no broad entailment evaluation |
+| Comparative baseline benchmark | Not implemented | Search/RAG baselines have not been run; earlier hard-coded example scores were removed |
+| Decision support & option comparison (M4) | Partial | `internal/rules`, `POST /v1/plan`, `tron plan`; validated caller-scored options, Pareto and weight perturbation; scores are not graph-sourced |
+| Controlled action execution (M5) | Partial | Authenticated tenant roles can create local drafts; in-memory replay/audit only; no durable state or external execution; state changes denied |
+| Proactive organizational alerts (M6) | Partial | Snapshot graph rules report conflicts and service ownership risks; no labeled quality evaluation |
+| Markdown source snapshots | Verified | Explicit manifest, idempotent retry, retained cursor on partial failure, source-owned deletion; see `LOCAL_MODEL_AND_SYNC.md` |
+| Identity and database constraints | Implemented | Reviewed aliases, per-label unique constraints (`tron constraints`), cross-label application check |
+| Tenant graph selection | Partial | Server-owned bearer credentials and UI workspace switching; no per-document ACL or managed identity |
+| Demo walkthrough | Included | Captioned UI-state walkthrough in `artifacts/demo`; README includes a public download URL. Team review and optional live narration remain. |
 
-### Evaluation & docs
-| Component | Status | Evidence/Gaps |
-|---|---|---|
-| Go test suites (12 files) | **Verified** | real-FalkorDB op tests; provenance/layering/write-contract invariants; M3 `evidence_test.go` (relevance/no-leak, provenance/windows, half-open `as_of` incl. boundary neighbours + offset-equivalent instants, explicit outcomes incl. `over_budget`, count/size bounds incl. unsatisfiable budget, malformed stored window, total store-order independence); E3 `grounded_test.go` (citation of real evidence, fabricated/cross-entity/cross-relation/missing-evidence rejection, non-`ok` statuses, truncation, JSON round trip) |
-| Eval suites E1–E12 | **In progress** | E1 PARTIAL (2026-10-16: `TestResolveEntity`, adversarial `TestResolveEntityContract` — recorded key-shaped ambiguity), E2 PARTIAL, E4 IMPLEMENTED (structural); E5 **IMPLEMENTED** (2026-10-16: `TestFindOwnerAsOf`, `TestFindExpertsAsOf`, `TestLoadEdgesNormalizesOffsetToUTC`); E6 **IMPLEMENTED** (2026-10-16: `TestFindConflicts`, `TestEndpoints/conflicts`); M3 retrieval/context assembly **IMPLEMENTED** (2026-10-16, EVALUATION §2.4: `TestAssembleEvidence*`, `TestAssembleContextToolSuppliesEvidence`); E3 **PARTIAL** (2026-10-16, EVALUATION §2.5: structural grounding — `TestGroundedAnswer*`; factual correctness needs a model + labeled corpus); E7+ PROPOSED; baselines none |
-| Comparison baselines | **Not started** | keyword search, RAG, tool-LLM |
-| Canonical docs (this set) | **Verified** | `docs/README.md` index |
+## Roadmap additions under quality review
 
-## Backlog (unscheduled)
+- Local Ollama adapter behind `Decide`, `/v1/grounded`, bounded connected retrieval,
+  strict citations, server-rendered relationship facts, and visible abstention/truncation.
+- Executable labeled model corpus with latency/token measurements; review artifacts
+  distinguish automated rubric results from participant semantic judgement.
+- Markdown snapshot manifests, idempotent retries, source-owned deletion, retained cursor
+  on partial failure, and explicit identity mappings.
+- Per-label database uniqueness, canonical-only `key=` lookup, reviewed aliases reserved
+  across application writers, and conflicting-citation rejection.
+- Credential-selected tenant graphs and UI cleanup when changing workspaces.
+- See [operational setup and boundaries](LOCAL_MODEL_AND_SYNC.md).
 
-| Item | Reason deferred | Revisit when |
-|---|---|---|
-| Second ingestion source | one source first (M2) | M2 acceptance met |
-| Vector/lexical index | index only routes (A2) | high-degree case measured (R8) |
-| Multi-agent framework | unnecessary (A10) | a measured need + ADR |
-| Materialized inference edges | recompute at query time (A9) | query cost measured |
-| Re-add cut edges (`MEMBER_OF`, …) | not in v1 model | explicit need + ADR |
-| Message queue / scheduler | one binary (A1) | throughput measured |
-| Cross-tenant isolation | single tenant | before 2nd tenant |
-| `tron doctor`, `tron eval` CLI | convenience | with M7 |
-| DB-level `key` uniqueness constraint | deferred by decision (loader-enforced sufficient for v1; limitation recorded) | before multi-source ingestion (M2) |
+## Integrated upstream work
 
-## Update rules
+- E3: stable content-derived `EvidenceFact.ID` and `GroundedAnswer` validate FACT citations against carried evidence, subjects, relationships, and context status. Covered by `TestGroundedAnswer*`. This is structural grounding, not semantic entailment; the existing `/v1/ask` response is not automatically converted to this new contract.
+- M3 audit: total fact ordering and explicit `over_budget` outcomes are retained, including malformed-window, boundary, and size-limit tests.
+- E3 remains PARTIAL: the ten reviewed synthetic examples and automated rubric are limited evidence; no comparative baseline or broad entailment evaluation exists.
+- M4 remains PARTIAL: `rules.EvaluatePlan` calculates a ranking over caller-supplied scores; it does not derive option scores from graph evidence.
+- M5 remains PARTIAL: only authenticated local draft generation is available. Replay and audit records are process-local; no target mutation or verified outcome is implemented.
+- M6 remains PARTIAL: `rules.DetectAlerts` detects candidate snapshot risks, but `TestDetectAlerts` does not establish precision/recall.
 
-- Change a status only with a code path, test, or command reference.
-- New work enters via a milestone ([`IMPLEMENTATIONPLAN.md`](IMPLEMENTATIONPLAN.md));
-  unscheduled ideas go to the backlog with a reason.
-- Keep this file and the two above in sync: milestone status here must match
-  the milestone section there.
+- M3: `AssembleEvidence` and `assemble_context` supply deterministic one-hop context with relationship/time filters, count and byte bounds, and explicit truncation. Verified by `TestAssembleEvidence*` and `TestAssembleContextToolSuppliesEvidence`.
+- E1: adversarial `TestResolveEntityContract` retained; key-shaped name-tier ambiguity remains documented in EVALUATION.md.
+- E5/E6 temporal and conflict suites retained. E9–E11 have focused prototype tests, not full evaluation suites.
+
+## Deliberate boundaries
+
+- Five deterministic question intents plus optional local Ollama retrieval and cited relationship selection. No unconstrained text-to-Cypher.
+- Synthetic dataset, structured imports, and explicit Markdown snapshots with retry/cursor/deletion handling; no private service connectors.
+- One writer per tenant graph. Optional server-owned bearer credentials select tenant graphs; no per-document permissions or managed identity.
+- Document refresh replaces the latest body; it is not a bitemporal document archive. Ownership changes retain edge history.
+- Validity windows use whole-second canonical UTC precision. Subsecond window endpoints are rejected rather than silently truncated.
+- As-of expertise filters ownership, not all historical activity.
+- M7 has partial tenant isolation, not production readiness.
+
+Merged-code runtime verification is recorded in [VERIFICATION.md](VERIFICATION.md).

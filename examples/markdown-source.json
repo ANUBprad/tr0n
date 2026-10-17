@@ -1,0 +1,8 @@
+{
+  "source": "tron-public-docs",
+  "root": "..",
+  "records": [
+    {"path":"docs/architecture-minimal.md","title":"TRON architecture","kind":"spec","author_key":"person:1","about_key":"project:1","source_ref":"https://github.com/Shashwat-911/tr0n-shashwat/blob/main/docs/architecture-minimal.md"},
+    {"path":"docs/GRAPH_MODEL.md","title":"TRON graph model","kind":"spec","author_key":"person:1","about_key":"project:1","source_ref":"https://github.com/Shashwat-911/tr0n-shashwat/blob/main/docs/GRAPH_MODEL.md"}
+  ]
+}

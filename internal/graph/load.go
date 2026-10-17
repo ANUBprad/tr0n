@@ -88,6 +88,9 @@ func validateNode(label string, row map[string]interface{}, seen map[string]bool
 			return fmt.Errorf("%s node %q: missing required provenance field %q", label, key, f)
 		}
 	}
+	if _, err := time.Parse(time.RFC3339, strCell(row, "observed_at")); err != nil {
+		return fmt.Errorf("%s node %q: observed_at must be RFC3339", label, key)
+	}
 	return nil
 }
 
@@ -106,6 +109,9 @@ func validateEdge(rel string, r EdgeRow) error {
 		}
 	}
 	validFrom := strCell(r.Props, "valid_from")
+	if _, err := time.Parse(time.RFC3339, strCell(r.Props, "observed_at")); err != nil {
+		return fmt.Errorf("%s edge: observed_at must be RFC3339", rel)
+	}
 	validTo := strCell(r.Props, "valid_to")
 	if allowed(stateRelations, rel) && validFrom == "" {
 		return fmt.Errorf("%s edge %s->%s: state relation requires %q", rel, r.From, r.To, "valid_from")
@@ -128,6 +134,9 @@ func validateEdge(rel string, r EdgeRow) error {
 			return fmt.Errorf("%s edge %s->%s: valid_from %q is not RFC3339: %w", rel, r.From, r.To, validFrom, err)
 		}
 		vf = t
+		if t.Nanosecond() != 0 {
+			return fmt.Errorf("%s edge: validity windows require whole-second precision", rel)
+		}
 		r.Props["valid_from"] = t.UTC().Format(time.RFC3339)
 	}
 	if validTo != "" {
@@ -136,6 +145,9 @@ func validateEdge(rel string, r EdgeRow) error {
 			return fmt.Errorf("%s edge %s->%s: valid_to %q is not RFC3339: %w", rel, r.From, r.To, validTo, err)
 		}
 		vt = t
+		if t.Nanosecond() != 0 {
+			return fmt.Errorf("%s edge: validity windows require whole-second precision", rel)
+		}
 		r.Props["valid_to"] = t.UTC().Format(time.RFC3339)
 	}
 	// Compare the parsed instants, not the raw strings: two equivalent
@@ -269,6 +281,9 @@ func (c *Client) LoadNodes(label string, rows []map[string]interface{}) error {
 	} else if len(existing) > 0 {
 		return fmt.Errorf("load %s nodes: key(s) already present: %s",
 			label, strings.Join(existing, ", "))
+	}
+	if err := c.rejectAliases(keys); err != nil {
+		return err
 	}
 	// falkordb-go's param encoder type-switches exactly: convert to the
 	// shapes it knows ([]interface{} of map/string) before sending.

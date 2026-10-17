@@ -88,6 +88,9 @@ func (g GroundedAnswer) Validate() error {
 		if f.ID == "" {
 			return fmt.Errorf("carried evidence (%s %s) has no id to cite", f.Relation, f.Neighbor.Key)
 		}
+		if prior, ok := byID[f.ID]; ok && prior != f {
+			return fmt.Errorf("conflicting facts share evidence id %q", f.ID)
+		}
 		byID[f.ID] = f
 	}
 

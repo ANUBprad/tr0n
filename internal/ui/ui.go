@@ -24,6 +24,15 @@ import (
 //go:embed page.html
 var pageHTML string
 
+//go:embed workspace.html
+var workspaceHTML string
+
+//go:embed app.css
+var appCSS string
+
+//go:embed app.js
+var appJS string
+
 // question is one built-in prompt on the index page. The set is fixed
 // (DEMO_SPEC: prepared queries for reliability).
 type question struct {
@@ -61,11 +70,32 @@ var errUnknownQuestion = errors.New("unknown question id")
 func Handler(c *graph.Client) http.Handler {
 	tmpl := template.Must(template.New("page").Parse(pageHTML))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" && r.Method != "HEAD" {
+			w.Header().Set("Allow", "GET, HEAD")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if r.URL.Path == "/app.css" {
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+			fmt.Fprint(w, appCSS)
+			return
+		}
+		if r.URL.Path == "/app.js" {
+			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+			fmt.Fprint(w, appJS)
+			return
+		}
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
 		v := view{Questions: questions, Active: r.URL.Query().Get("q")}
+		if v.Active == "" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprint(w, workspaceHTML)
+			return
+		}
 		if v.Active != "" {
 			a, sections, err := answer(c, v.Active)
 			switch {
@@ -459,7 +489,11 @@ func routeAnswer(c *graph.Client) (*knowledge.Answer, []Section, error) {
 			Paths:  bpaths,
 			RuleID: experts.RuleID,
 		})
-		reasons = append(reasons, fmt.Sprintf("top expert (score %.2f)", top.Score))
+		if top.Key == recKey {
+			reasons = append(reasons, fmt.Sprintf("top expert (score %.2f)", top.Score))
+		} else {
+			reasons = append(reasons, fmt.Sprintf("consult %s, the top expert (score %.2f)", top.Name, top.Score))
+		}
 	}
 	handlers := handlerNames(incidents)
 	if len(incidents) > 0 {
@@ -480,14 +514,10 @@ func routeAnswer(c *graph.Client) (*knowledge.Answer, []Section, error) {
 	}
 
 	sec := Section{Title: "Inputs to the recommendation", Header: []string{"Role", "Person", "Why"}}
-	if len(paths) == 0 {
+	if len(paths) == 0 || recommend == "" || len(owners) > 1 {
 		a.Layer = knowledge.LayerFact
-		a.Answer = "Insufficient graph data to recommend an owner for payments-api."
-		a.Claims = []knowledge.Claim{{
-			Text:  "No ownership, expertise, or incident signals exist for payments-api.",
-			Layer: knowledge.LayerFact,
-			Paths: []string{"FindOwner/FindExperts/FindRelatedIncidents → all empty"},
-		}}
+		a.Answer = "No unambiguous investigation lead can be recommended from the recorded signals. Review ownership and source evidence first."
+		a.Claims = claims
 		return a, []Section{sec}, nil
 	}
 	if len(owners) > 0 {

@@ -1,5 +1,7 @@
 # TRON — Graph Model (Initial Schema, Locked)
 
+> **2026-10-17 implementation amendment:** Document includes optional `body` and supports `chat`/`ticket` kinds; Decision includes optional recorded `rationale`. Current ownership uses actual UTC time, and validity windows have whole-second precision. `LoadNodes` rejects duplicate keys across loads/labels within the serialized client. Per-label database uniqueness constraints can be installed with `tron constraints`; structured imports and sourced ownership updates are implemented. These changes supersede the earlier deferral notes below.
+
 **Status**: LOCKED (2026-10-08) — initial schema for the first useful
 product, not a model of the whole world. See `planning/decision-log.md`.
 Provenance/temporal rules: `knowledge-model.md`. Cypher lives only in
@@ -14,8 +16,9 @@ until a real query demands it.
 ## Entities (initial: 11)
 
 All nodes: `key` = `"<src>:<native-id>"` (identity; **requirement**: unique and
-indexed per label — the index is non-unique and uniqueness is enforced by the
-bulk loader, see Indexes below), plus node provenance `src_type`, `src_ref`,
+indexed per label — install the unique database constraints with
+`tron constraints`; application writers additionally reject cross-label
+duplicates, see Indexes below), plus node provenance `src_type`, `src_ref`,
 `observed_at`, `extraction`. `name`/`title` **required** indexed per label for
 entity resolution (not yet created — see Indexes).
 
@@ -129,15 +132,8 @@ The gap is recorded as the product decision below (decided 2026-10-15) — it is
 | `name` / `title` per label | index for entity resolution by name | **Not created** today |
 | any other index | none until a query plan demands one (measure first) | none |
 
-**Product decision (2026-10-15): defer database-level enforcement.** v1
-accepts loader-enforced uniqueness. The unique-per-label requirement above
-is unchanged and is **not** relaxed by this deferral. **Follow-up
-(2026-10-16)**: the loader now enforces uniqueness *across loads and
-labels*, not only within a batch — `LoadNodes` rejects any batch whose key
-is already present in the graph, before writing anything (non-destructive:
-it rejects, never merges). This closes the path where a duplicate-`key`
-node could silently split an edge/identity lookup or mask an E6 group;
-database-level enforcement (the index remains non-unique) is still
-deferred. Recorded in `planning/decision-log.md`, promoted from
-`OPEN_QUESTIONS.md`, and tracked in `TRACKER.md` (backlog: revisit a DB
-constraint before multi-source ingestion, M2).
+**Current enforcement:** `tron constraints` creates and verifies unique-key
+constraints per node label. Application writers also check keys across labels;
+FalkorDB does not enforce uniqueness across different labels. Direct external
+writers must preserve that cross-label rule. The older 2026-10-15 deferral
+decision is historical and superseded by the 2026-10-17 implementation.

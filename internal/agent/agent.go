@@ -86,11 +86,17 @@ func (s *Session) OperationsUsed() []string {
 // stop the session.
 func (s *Session) Run(ctx context.Context, decide Decide) error {
 	for step := 0; step < s.MaxSteps; step++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		d, err := decide(ctx, s.System, s.turns)
 		if err != nil {
 			return fmt.Errorf("model decide (step %d): %w", step, err)
 		}
 		if d.Answer != "" {
+			if len(d.Calls) > 0 {
+				return fmt.Errorf("model returned both answer and tool calls")
+			}
 			s.answer = d.Answer
 			return nil
 		}
@@ -98,6 +104,12 @@ func (s *Session) Run(ctx context.Context, decide Decide) error {
 			return fmt.Errorf("model returned neither answer nor tool calls (step %d)", step)
 		}
 		for _, call := range d.Calls {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if len(s.turns) >= 32 {
+				return fmt.Errorf("tool call budget (32) exceeded")
+			}
 			s.turns = append(s.turns, s.exec(ctx, call))
 		}
 	}

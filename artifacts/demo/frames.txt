@@ -1,0 +1,11 @@
+file '01-ownership.png'
+duration 12
+file '02-expertise.png'
+duration 12
+file '03-decision.png'
+duration 12
+file '04-history.png'
+duration 12
+file '05-handoff.png'
+duration 12
+file '05-handoff.png'

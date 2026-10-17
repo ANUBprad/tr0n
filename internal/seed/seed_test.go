@@ -3,6 +3,7 @@ package seed
 import (
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +50,29 @@ func TestGenerateDeterministicAndProvenanced(t *testing.T) {
 	for _, row := range a.nodes["Decision"] {
 		if row["status"] == nil || row["title"] == nil {
 			t.Errorf("decision %v missing status/title", row["key"])
+		}
+	}
+	servicesByRepo := map[string][]string{}
+	for _, edge := range a.edges["HAS_REPO"] {
+		for _, service := range a.nodes["Service"] {
+			if service["key"] == edge.From {
+				servicesByRepo[edge.To] = append(servicesByRepo[edge.To], service["name"].(string))
+			}
+		}
+	}
+	pullRequests := map[string]map[string]interface{}{}
+	for _, row := range a.nodes["PullRequest"] {
+		pullRequests[row["key"].(string)] = row
+	}
+	for _, edge := range a.edges["MODIFIED"] {
+		if services := servicesByRepo[edge.To]; len(services) > 0 {
+			match := false
+			for _, service := range services {
+				match = match || strings.Contains(pullRequests[edge.From]["title"].(string), service)
+			}
+			if !match {
+				t.Errorf("pull request %s title does not match any service behind repository %s", edge.From, edge.To)
+			}
 		}
 	}
 	for rel, rows := range a.edges {

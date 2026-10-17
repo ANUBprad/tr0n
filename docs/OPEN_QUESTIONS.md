@@ -19,23 +19,28 @@ decided — never decide silently in a spec.
 
 | Former question | Resolution |
 |---|---|
-| **Key uniqueness enforcement** | **DECIDED: defer database-level enforcement**; v1 accepts loader-enforced uniqueness. **Follow-up (2026-10-16)**: the bulk loader now enforces uniqueness *across loads and labels* (`LoadNodes` rejects any batch key already present, before writing) — not just within a batch — so duplicate `key` nodes can no longer be created through the loader. Database-level enforcement is still deferred to the backlog (the shipped index remains non-unique); revisit before multi-source ingestion (M2). Recorded in `planning/decision-log.md`. |
+| **Key uniqueness enforcement** | **Implemented (2026-10-17):** `tron constraints` creates/verifies per-label database uniqueness constraints; application writers also reject duplicate keys across labels. Direct external writers still need to preserve the cross-label invariant. The original 2026-10-15 deferral is historical and superseded; see `GRAPH_MODEL.md` and `planning/decision-log.md`. |
 | **E6 contradiction semantics** (previously ambiguous) | **DECIDED:** E6 v1 flags incompatible *state*-relation claims whose half-open `[valid_from, valid_to)` windows overlap; `OWNS` = different owners of the same target; other state relations only where `GRAPH_MODEL.md` declares exclusivity; a repeated same-counterpart claim is corroboration, not contradiction; event edges and node-property conflicts are out of scope. First exposure is the read-only `POST /v1/conflicts` (implemented 2026-10-16). See `planning/decision-log.md` and `docs/SCHEMA.md` §6. |
 
 ## Resolved by the E3 source-grounded answer contract (2026-10-16)
 
 | Former question | Resolution |
 |---|---|
-| **How should a `knowledge.Answer` carry structured per-fact provenance from context assembly?** | **DECIDED: option C — an additive `graph.GroundedAnswer` envelope.** The answer's claims are bound to the *actual* retrieval result: `GroundedAnswer` carries the unchanged `knowledge.Answer`, the `EvidenceContext` it was built from, and one `ClaimGrounding` per claim naming the claim's subject entity, the relationship (when asserted), and the IDs of the supporting facts. `graph.EvidenceFact` gains a stable content-derived `id` so a claim cites specific evidence rather than a position. `GroundedAnswer.Validate` requires every FACT claim to cite ≥1 known fact matching its subject/relationship, and refuses any FACT claim on a non-`ok` context (`not_found`/`ambiguous`/`empty`/`over_budget`). Options A (extend `knowledge.Claim` — impossible: `knowledge` cannot import `graph`) and B (link by path string — reconstructs provenance from display strings) were rejected; see `planning/decision-log.md`. **E3 stays PARTIAL**: this proves structural linkage, not factual correctness/entailment (needs a wired model + labeled corpus). |
+| **How should a `knowledge.Answer` carry structured per-fact provenance from context assembly?** | **DECIDED: option C — an additive `graph.GroundedAnswer` envelope.** The answer's claims are bound to the *actual* retrieval result: `GroundedAnswer` carries the unchanged `knowledge.Answer`, the `EvidenceContext` it was built from, and one `ClaimGrounding` per claim naming the claim's subject entity, the relationship (when asserted), and the IDs of the supporting facts. `graph.EvidenceFact` gains a stable content-derived `id` so a claim cites specific evidence rather than a position. `GroundedAnswer.Validate` requires every FACT claim to cite ≥1 known fact matching its subject/relationship, and refuses any FACT claim on a non-`ok` context (`not_found`/`ambiguous`/`empty`/`over_budget`). Options A (extend `knowledge.Claim` — impossible: `knowledge` cannot import `graph`) and B (link by path string — reconstructs provenance from display strings) were rejected; see `planning/decision-log.md`. **E3 stays PARTIAL**: the local model and labeled corpus now run; structural linkage and a ten-sample participant review do not establish broad factual correctness/entailment, and comparative baselines remain open. |
+
+## Resolved by the 2026-10-17 competition build
+
+| Question | Resolution |
+|---|---|
+| **Optional local answering provider** | **DECIDED: Ollama** for the optional grounded-answer path. `internal/agent/ollama.go` implements the `agent.Decide` adapter; model evaluation and participant-review status are in `EVALUATION.md`. Deterministic workflows still need no model; hosted providers remain out of scope. |
 
 ## Still open
 
 | Question | Options | Notes |
 |---|---|---|
-| **LLM Provider** | OpenAI / Anthropic / Local (Ollama) / Gemini | UNDECIDED. Irrelevant to v1 core (no LLM needed); matters only for the future agent layer. Consider cost, rate limits, local fallback. Seam is ready: `agent.Decide` in `internal/agent` — one adapter function per provider. |
 | **Agent framework** | Custom minimal loop vs library | **RESOLVED (2026-10-08): custom minimal loop** — `internal/agent`, provider-agnostic `Decide` seam, bounded step budget, tool errors fed back to the model. No framework; see decision-log. |
 | **Frontend** | Server-rendered minimal page / Vite+React / CLI-first | **RESOLVED (2026-10-08): server-rendered minimal page** — stdlib `html/template` served by `tron serve` at `/`, five built-in questions + evidence panels over the JSON API. No JS toolchain; swap is cheap if needed. |
-| **FalkorDB setup** | Docker compose (default candidate) vs binary | **RESOLVED (2026-10-08): Docker compose** — `compose.yaml` in repo, local-first, no volume (seed recreates data). |
+| **FalkorDB setup** | Docker compose (default candidate) vs binary | **RESOLVED: Docker Compose** — `compose.yaml` uses a named persistent volume; `tron seed` explicitly resets only the selected demo graph. |
 | **Data generation strategy** | Go generator in-repo vs external script | **RESOLVED (2026-10-08): Go generator in-repo** — `internal/seed` + `tron seed`, deterministic `Generate()` + direct bulk load; see decision-log. |
 | **Deployment** | Local-only vs cloud | UNDECIDED. Complete local setup is the floor; cloud is optional. |
 | **Enter Track 01 / Track 02?** | Yes / No | UNDECIDED. Only if the natural build earns it. |

@@ -112,6 +112,25 @@ func TestLoopSurfacesToolErrorsToModel(t *testing.T) {
 // Deliberate retrieval is bounded: a model that never answers hits the
 // step budget, and a non-decision reply is an error, not a hang.
 func TestLoopStepBudgetAndInvalidMoves(t *testing.T) {
+	t.Run("cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		s := New(DefaultSystem, echoTools())
+		if err := s.Run(ctx, scripted(Decision{Answer: "never"})); err != context.Canceled {
+			t.Fatalf("cancellation lost: %v", err)
+		}
+	})
+	t.Run("call budget", func(t *testing.T) {
+		s := New(DefaultSystem, echoTools())
+		calls := make([]Call, 33)
+		for i := range calls {
+			calls[i] = Call{Name: "echo"}
+		}
+		err := s.Run(context.Background(), scripted(Decision{Calls: calls}))
+		if err == nil || len(s.Turns()) != 32 {
+			t.Fatalf("unbounded calls: %d %v", len(s.Turns()), err)
+		}
+	})
 	t.Run("budget exceeded", func(t *testing.T) {
 		s := New(DefaultSystem, echoTools())
 		always := Decision{Calls: []Call{{Name: "echo"}}}

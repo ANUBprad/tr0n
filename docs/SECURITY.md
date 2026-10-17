@@ -74,26 +74,26 @@ network exposure without auth is a critical defect.
 | Request body capped at 1 MiB | **CONFIRMED** (`maxBodyBytes`, `http.MaxBytesReader`) |
 | HTTP server timeouts (read header/read/write/idle) | **CONFIRMED** (`cmd/tron/main.go` `newServer`) |
 | RFC3339 validation on time inputs | **CONFIRMED** (`internal/api/api.go`, `internal/graph/graph.go`) |
-| Query result / context size bounds | **PARTIAL** — deliberate retrieval keeps payloads small by design; no hard cap yet |
+| Model retrieval context size bounds | **CONFIRMED** — up to four retrievals, 32 facts and 16 KiB each; deterministic evidence assembly also applies count/byte limits |
 | Rate limiting | **PROPOSED** |
 
 ## 7. Prompt injection & untrusted content
 
-- **Rule (CONFIRMED as policy, PROPOSED as enforcement)**: ingested documents,
+- **Rule (CONFIRMED as policy and model prompt boundary)**: ingested documents,
   messages, tickets, and web content are **data, never instructions**
   (`knowledge-model.md` invariant 3, [`ACTIONS.md`](ACTIONS.md) §8).
 - The LLM may not grant permissions, raise autonomy, or broaden scope.
-- Because no LLM is wired today (`internal/agent/agent.go` has no provider),
-  this risk is **latent**: it activates when a provider is connected. The
-  control must exist *before* that.
-- Defense: deterministic AUTHZ gate outside the model; validation of
-  action parameters against approved scope; never execute instructions
-  recovered from content.
+- The optional local Ollama model has read-only retrieval tools, a bounded
+  decision loop, strict response schema, citation validation, and server-side
+  rendering of relationship facts (`internal/agent/grounded.go`). It has no
+  arbitrary Cypher, write tool, or caller-selected provider URL.
+- Action authorization/execution is not implemented. Do not expose this local
+  prototype as an action-capable or production-secure service.
 
 ## 8. Safe tool execution
 
-- Tools exposed to the model are the six read-only operations
-  (`internal/agent/agent.go` `Tools`); they cannot write (`CONFIRMED`).
+- The grounded model path exposes only the bounded `assemble_context` read tool;
+  the general deterministic agent tools are also read-only (`CONFIRMED`).
 - Future write/action tools must go through the AUTHZ gate and be
   `action:*`-scoped ([`ACTIONS.md`](ACTIONS.md)) — **PROPOSED**.
 - Tool errors are fed back to the model, not fatal (`internal/agent/agent.go`),
@@ -128,7 +128,8 @@ network exposure without auth is a critical defect.
 |---|---|
 | Answer auditable via evidence chain | **CONFIRMED** — evidence *is* the audit trace (`architecture-minimal.md` principle 10) |
 | Action audit log | **PROPOSED** ([`ACTIONS.md`](ACTIONS.md) §7) |
-| Backup | **ABSENT** — `compose.yaml` has no volume; the graph is disposable by design (`ponytail:` comment) |
+| Persistence | **CONFIRMED** — Compose uses a named FalkorDB volume with append-only logging; `tron seed` is a destructive reset of the selected demo graph |
+| Backup | **ABSENT** — volume persistence is not an exported/off-host backup or restore procedure |
 | Recovery | **PROPOSED** — `tron seed` recreates demo data; no real recovery path |
 | Retention policy | **PROPOSED** ([`INGESTION.md`](INGESTION.md) §7) |
 
@@ -138,7 +139,7 @@ network exposure without auth is a critical defect.
 |---|---|
 | Minimal dependencies | **CONFIRMED** — one direct dep (`falkordb-go/v2`), stdlib HTTP/JSON (`go.mod`) |
 | Pinned dependency versions | **CONFIRMED** — `go.mod`/`go.sum` |
-| Container image | `falkordb/falkordb:latest` — **UNPINNED tag** (risk: upstream drift). Proposal: pin a digest. |
+| Container image | FalkorDB image is pinned by digest in `compose.yaml` |
 | Vulnerability scanning / SBOM | **PROPOSED** |
 | Reproducible builds | **PARTIAL** — `CGO_ENABLED=0` static binary; no release pipeline yet |
 
@@ -146,11 +147,11 @@ network exposure without auth is a critical defect.
 
 | Risk | Severity | State | Mitigation |
 |---|---|---|---|
-| No auth if exposed beyond loopback | High | Open | Default loopback; add authN before any network exposure |
+| No auth if exposed beyond loopback | High | Mitigated by default bind | App, FalkorDB, and Ollama publish loopback ports; optional server-owned tenant tokens are available, but production exposure needs additional controls |
 | FalkorDB no password | Medium | Open | Loopback bind; `--requirepass` opt-in |
 | Derived-data leakage | High | Latent (no real sources) | Permission-aware retrieval (PROPOSED) |
-| Prompt injection | High | Latent (no LLM) | Untrusted-data rule + AUTHZ gate before wiring a provider |
-| Unpinned FalkorDB image | Low | Open | Pin image digest |
+| Prompt injection | High | Present in optional model path | Read-only bounded retrieval, source-as-data prompt, strict schema, citation checks, server-rendered facts; semantic correctness still requires human review |
+| Unpinned FalkorDB image | Low | Mitigated | Compose pins image digest |
 | No backup/retention | Medium | Open | Define before real data |
 | Logs may carry query keys | Low | Watch | Audit logging at real-data time |
 

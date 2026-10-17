@@ -23,9 +23,10 @@ import (
 // operation via db.SelectGraph, which shares the same pool, then drop
 // the lock.
 type Client struct {
-	mu sync.Mutex
-	db *falkordb.FalkorDB
-	g  *falkordb.Graph
+	name string
+	mu   sync.Mutex
+	db   *falkordb.FalkorDB
+	g    *falkordb.Graph
 }
 
 // New connects to FalkorDB at addr and selects the named graph.
@@ -36,7 +37,7 @@ func New(addr, graphName string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect falkordb at %s: %w", addr, err)
 	}
-	return &Client{db: db, g: db.SelectGraph(graphName)}, nil
+	return &Client{name: graphName, db: db, g: db.SelectGraph(graphName)}, nil
 }
 
 func (c *Client) Close() error {
@@ -52,22 +53,12 @@ type Owner struct {
 	Provenance knowledge.Provenance `json:"provenance"`
 }
 
-// openEndedAsOf is the as-of instant used when the caller omits as_of.
-// At a far-future instant the half-open predicate
-// (valid_from <= as_of AND (valid_to IS NULL OR valid_to > as_of))
-// is exactly "no valid_to" — the established current-state behavior — so
-// one parameterized query serves both current and historical reads.
-// FalkorDB has no datetime() (verified), so windows compare as canonical
-// RFC3339 UTC strings: the loader normalizes every stored endpoint and
-// asOfInstant normalizes the argument.
-const openEndedAsOf = "9999-12-31T23:59:59Z"
-
 // asOfInstant resolves the optional as_of argument to the canonical
 // RFC3339 UTC instant the queries compare against. Absent or zero means
-// current state.
+// the actual current time, so scheduled future owners do not appear early.
 func asOfInstant(asOf []time.Time) string {
 	if len(asOf) == 0 || asOf[0].IsZero() {
-		return openEndedAsOf
+		return time.Now().UTC().Format(time.RFC3339)
 	}
 	return asOf[0].UTC().Format(time.RFC3339)
 }
@@ -87,7 +78,8 @@ func (c *Client) FindOwner(target string, asOf ...time.Time) ([]Owner, error) {
 	  AND (r.valid_to IS NULL OR r.valid_to > $as_of)
 	RETURN o.key AS owner_key, o.name AS owner_name, labels(o)[0] AS owner_kind,
 	       r.src_type AS src_type, r.src_ref AS src_ref, r.observed_at AS observed_at,
-	       r.extraction AS extraction, r.valid_from AS valid_from`
+	       r.extraction AS extraction, r.valid_from AS valid_from, r.valid_to AS valid_to
+	ORDER BY o.key`
 	res, err := c.g.ROQuery(q, map[string]interface{}{"target": target, "as_of": asOfInstant(asOf)}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("find owner %q: %w", target, err)
@@ -157,6 +149,11 @@ func (c *Client) FindExperts(serviceKey string, limit int, now time.Time, asOf .
 			Class:      field(rec, "class"),
 			Path:       basisPath(field(rec, "class"), nodeList(rec)),
 		}
+		for _, node := range nodeList(rec) {
+			if key, ok := node.Properties["key"].(string); ok {
+				ev.Keys = append(ev.Keys, key)
+			}
+		}
 		if s := field(rec, "occurred_at"); s != "" {
 			if t, err := time.Parse(time.RFC3339, s); err == nil {
 				ev.OccurredAt = t
@@ -185,6 +182,7 @@ type Decision struct {
 	Title     string `json:"title"`
 	Status    string `json:"status"`
 	DecidedAt string `json:"decided_at,omitempty"`
+	Rationale string `json:"rationale,omitempty"`
 }
 
 type PersonRef struct {
@@ -235,7 +233,7 @@ func (c *Client) TraceDecision(ref string) (*DecisionTrace, error) {
 	MATCH (d:Decision)
 	WHERE d.key = $q OR d.title = $q
 	RETURN d.key AS key, d.title AS title, d.status AS status,
-	       coalesce(d.decided_at, '') AS decided_at
+	       coalesce(d.decided_at, '') AS decided_at, coalesce(d.rationale, '') AS rationale
 	ORDER BY d.key LIMIT 1`
 	res, err := c.g.ROQuery(resolve, map[string]interface{}{"q": ref}, nil)
 	if err != nil {
@@ -252,6 +250,7 @@ func (c *Client) TraceDecision(ref string) (*DecisionTrace, error) {
 			Title:     field(rec, "title"),
 			Status:    field(rec, "status"),
 			DecidedAt: field(rec, "decided_at"),
+			Rationale: field(rec, "rationale"),
 		},
 		AuthoredBy:  []SourcedPerson{},
 		DiscussedIn: []MeetingRef{},
@@ -706,6 +705,10 @@ func (c *Client) ResolveEntity(name, label string) (Resolution, error) {
 		})
 	}
 
+	keyOnly := strings.HasPrefix(name, "key=")
+	if keyOnly {
+		name = strings.TrimPrefix(name, "key=")
+	}
 	lower := strings.ToLower(name)
 	tiers := []struct {
 		on   string
@@ -718,7 +721,19 @@ func (c *Client) ResolveEntity(name, label string) (Resolution, error) {
 			return strings.HasPrefix(strings.ToLower(c.Name), lower)
 		}},
 	}
+	if keyOnly {
+		tiers = tiers[:1]
+	}
 	for _, tier := range tiers {
+		if tier.on == "name" {
+			alias, err := c.resolveAlias(name, label)
+			if err != nil {
+				return empty, err
+			}
+			if alias.Key != "" || len(alias.Candidates) > 0 {
+				return alias, nil
+			}
+		}
 		var hits []Candidate
 		for _, cand := range all {
 			if tier.test(cand) {

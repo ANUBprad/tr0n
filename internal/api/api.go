@@ -1,19 +1,23 @@
-// Package api is the read-only JSON surface over the graph
-// operations (docs/AGENT_SPEC.md). Ingestion writes facts; this layer
-// only ever reads. The future agent layer composes these endpoints —
-// answer envelopes (answer/claims) belong there, not here.
+// Package api exposes graph-backed read operations and limited, role-gated
+// local draft actions. Ingestion remains the graph fact writer; action drafts
+// do not mutate graph or external state.
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/ANUBprad/tr0n/internal/actions"
+	"github.com/ANUBprad/tr0n/internal/agent"
 	"github.com/ANUBprad/tr0n/internal/graph"
+	"github.com/ANUBprad/tr0n/internal/rules"
 )
 
 // maxBodyBytes caps request bodies. The largest TRON payload is a list
@@ -21,14 +25,90 @@ import (
 // headroom while still bounding memory per request.
 const maxBodyBytes = 1 << 20
 
-// Handler wires the seven read endpoints (six shipped ops + the E6
-// FindConflicts exposure, docs/AGENT_SPEC.md). The graph client is
-// shared across requests: falkordb-go issues stateless commands on a
-// go-redis pool.
+// Handler wires the graph API. The graph client is shared across requests:
+// falkordb-go issues stateless commands on a go-redis pool. Its action routes
+// reject requests because this handler has no server-owned identity context;
+// use TenantHandler to enable role-bound draft operations.
 // ponytail: if pooling ever misbehaves under concurrency, upgrade path
 // is a per-request client — the handler signatures do not change.
-func Handler(c *graph.Client) http.Handler {
+func Handler(c *graph.Client) http.Handler { return HandlerWithModel(c, nil) }
+
+func HandlerWithModel(c *graph.Client, model *agent.Ollama) http.Handler {
 	mux := http.NewServeMux()
+	actionEngine := actions.NewEngine()
+	modelSlots := make(chan struct{}, 1)
+	mux.HandleFunc("GET /v1/model", func(w http.ResponseWriter, r *http.Request) {
+		name := ""
+		if model != nil {
+			name = model.Model
+		}
+		write(w, http.StatusOK, map[string]interface{}{"configured": model != nil, "provider": "ollama", "model": name})
+	})
+	mux.HandleFunc("POST /v1/grounded", func(w http.ResponseWriter, r *http.Request) {
+		if model == nil {
+			write(w, http.StatusServiceUnavailable, map[string]string{"error": "Local answering model is not configured"})
+			return
+		}
+		var req agent.GroundedRequest
+		if !decode(w, r, &req) {
+			return
+		}
+		if strings.TrimSpace(req.Question) == "" || len(req.Question) > 2000 || len(req.Target) > 300 {
+			badRequest(w, "invalid question or target length")
+			return
+		}
+		if _, ok := optionalInstant(w, "as_of", req.AsOf); !ok {
+			return
+		}
+		select {
+		case modelSlots <- struct{}{}:
+			defer func() { <-modelSlots }()
+		default:
+			write(w, http.StatusTooManyRequests, map[string]string{"error": "Local model is busy; retry after the current question"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
+		defer cancel()
+		decide, usage := model.Decider()
+		result, err := agent.GroundedAsk(ctx, c, req, decide)
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		write(w, http.StatusOK, map[string]interface{}{"result": result, "usage": usage})
+	})
+	mux.HandleFunc("GET /v1/catalog", func(w http.ResponseWriter, r *http.Request) {
+		res, err := c.Catalog()
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		write(w, http.StatusOK, res)
+	})
+	mux.HandleFunc("POST /v1/ask", func(w http.ResponseWriter, r *http.Request) {
+		var req agent.AskRequest
+		if !decode(w, r, &req) {
+			return
+		}
+		if strings.TrimSpace(req.Question) == "" || len(req.Question) > 2000 || len(req.Target) > 300 {
+			badRequest(w, "question must contain 1–2000 characters and target at most 300")
+			return
+		}
+		if _, ok := optionalInstant(w, "as_of", req.AsOf); !ok {
+			return
+		}
+		intent := agent.Intent(req.Question)
+		if req.AsOf != "" && intent != "owner" && intent != "experts" {
+			badRequest(w, "as_of is supported for ownership and expertise only")
+			return
+		}
+		res, err := agent.Ask(r.Context(), c, req)
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		write(w, http.StatusOK, res)
+	})
 
 	mux.HandleFunc("POST /v1/owner", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -188,6 +268,105 @@ func Handler(c *graph.Client) http.Handler {
 		res, err := c.FindConflicts(req.Relation, req.Key)
 		if err != nil {
 			serverError(w, err)
+			return
+		}
+		write(w, http.StatusOK, res)
+	})
+
+	mux.HandleFunc("POST /v1/plan", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Context string                `json:"context"`
+			Options []rules.Option        `json:"options"`
+			Weights rules.CriteriaWeights `json:"weights"`
+		}
+		if !decode(w, r, &req) {
+			return
+		}
+		if req.Context == "" {
+			badRequest(w, "context is required")
+			return
+		}
+		res, err := rules.EvaluatePlan(req.Context, req.Options, req.Weights)
+		if err != nil {
+			badRequest(w, err.Error())
+			return
+		}
+		write(w, http.StatusOK, res)
+	})
+
+	mux.HandleFunc("GET /v1/alerts", func(w http.ResponseWriter, r *http.Request) {
+		alertsList, err := rules.DetectAlerts(c)
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		write(w, http.StatusOK, map[string]interface{}{"alerts": alertsList})
+	})
+
+	mux.HandleFunc("POST /v1/actions/propose", func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := requireRole(w, r, "requester")
+		if !ok {
+			return
+		}
+		var req struct {
+			ActionType string                 `json:"action_type"`
+			Target     string                 `json:"target"`
+			Parameters map[string]interface{} `json:"parameters"`
+		}
+		if !decode(w, r, &req) {
+			return
+		}
+		prop, authz, err := actionEngine.Propose(actor.Actor, req.ActionType, req.Target, req.Parameters)
+		if err != nil {
+			write(w, http.StatusForbidden, map[string]interface{}{"error": err.Error(), "authz": authz})
+			return
+		}
+		write(w, http.StatusOK, map[string]interface{}{"proposal": prop, "authz": authz})
+	})
+
+	mux.HandleFunc("POST /v1/actions/approve", func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := requireRole(w, r, "approver")
+		if !ok {
+			return
+		}
+		var req struct {
+			ActionID string `json:"action_id"`
+		}
+		if !decode(w, r, &req) {
+			return
+		}
+		if req.ActionID == "" {
+			badRequest(w, "action_id is required")
+			return
+		}
+		appr, err := actionEngine.Approve(req.ActionID, actor.Actor, 24*time.Hour)
+		if err != nil {
+			badRequest(w, err.Error())
+			return
+		}
+		write(w, http.StatusOK, appr)
+	})
+
+	mux.HandleFunc("POST /v1/actions/execute", func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := requireRole(w, r, "executor")
+		if !ok {
+			return
+		}
+		var req struct {
+			ActionID       string                 `json:"action_id"`
+			IdempotencyKey string                 `json:"idempotency_key"`
+			Parameters     map[string]interface{} `json:"parameters"`
+		}
+		if !decode(w, r, &req) {
+			return
+		}
+		if req.ActionID == "" || req.IdempotencyKey == "" {
+			badRequest(w, "action_id and idempotency_key are required")
+			return
+		}
+		res, err := actionEngine.Execute(actor.Actor, req.ActionID, req.IdempotencyKey, req.Parameters)
+		if err != nil {
+			badRequest(w, err.Error())
 			return
 		}
 		write(w, http.StatusOK, res)
