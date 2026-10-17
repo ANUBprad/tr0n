@@ -1,0 +1,456 @@
+{
+  "command": "go run ./cmd/tron bench [warmup] [iterations]",
+  "case_id": "three-hop",
+  "question": "Find an author of a pull request that modified this service's repository. Follow HAS_REPO to the repository, incoming MODIFIED to a PullRequest, then incoming AUTHORED to its Person. State who authored which pull request.",
+  "target": "service:payments-api",
+  "model": "qwen3:4b",
+  "graph": "tron_bench",
+  "warmup_iterations": 3,
+  "measured_iterations": 20,
+  "model_preloaded_before_run": true,
+  "graph_reset_before_run": true,
+  "graph_reset_between_runs": false,
+  "cold_start_ms": 59280,
+  "started": "2026-10-17T12:04:55Z",
+  "ended": "2026-10-17T12:30:42Z",
+  "warmups": [
+    {
+      "index": 0,
+      "status": "abstained",
+      "latency_ms": 59280,
+      "graph_ms": 22,
+      "model_ms": 59257,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1513,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 1,
+      "status": "abstained",
+      "latency_ms": 57683,
+      "graph_ms": 28,
+      "model_ms": 57654,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1454,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 2,
+      "status": "abstained",
+      "latency_ms": 56841,
+      "graph_ms": 20,
+      "model_ms": 56820,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1363,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    }
+  ],
+  "runs": [
+    {
+      "index": 0,
+      "status": "abstained",
+      "latency_ms": 58065,
+      "graph_ms": 46,
+      "model_ms": 58017,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1340,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 1,
+      "status": "abstained",
+      "latency_ms": 54990,
+      "graph_ms": 49,
+      "model_ms": 54940,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1247,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 2,
+      "status": "abstained",
+      "latency_ms": 77113,
+      "graph_ms": 15,
+      "model_ms": 77097,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1762,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 3,
+      "status": "abstained",
+      "latency_ms": 76418,
+      "graph_ms": 115,
+      "model_ms": 76302,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1688,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 4,
+      "status": "abstained",
+      "latency_ms": 62254,
+      "graph_ms": 232,
+      "model_ms": 62020,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1209,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 5,
+      "status": "abstained",
+      "latency_ms": 71927,
+      "graph_ms": 220,
+      "model_ms": 71706,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1372,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 6,
+      "status": "abstained",
+      "latency_ms": 66818,
+      "graph_ms": 365,
+      "model_ms": 66452,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1407,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 7,
+      "status": "abstained",
+      "latency_ms": 62594,
+      "graph_ms": 299,
+      "model_ms": 62294,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1294,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 8,
+      "status": "abstained",
+      "latency_ms": 76798,
+      "graph_ms": 22,
+      "model_ms": 76776,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1628,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 9,
+      "status": "abstained",
+      "latency_ms": 59583,
+      "graph_ms": 87,
+      "model_ms": 59495,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1424,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 10,
+      "status": "abstained",
+      "latency_ms": 48542,
+      "graph_ms": 68,
+      "model_ms": 48473,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1186,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 11,
+      "status": "abstained",
+      "latency_ms": 60736,
+      "graph_ms": 58,
+      "model_ms": 60677,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1459,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 12,
+      "status": "abstained",
+      "latency_ms": 57848,
+      "graph_ms": 569,
+      "model_ms": 57277,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1387,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 13,
+      "status": "abstained",
+      "latency_ms": 63482,
+      "graph_ms": 34,
+      "model_ms": 63447,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1456,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 14,
+      "status": "abstained",
+      "latency_ms": 75209,
+      "graph_ms": 123,
+      "model_ms": 75085,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1552,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 15,
+      "status": "abstained",
+      "latency_ms": 102236,
+      "graph_ms": 240,
+      "model_ms": 101984,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1855,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 16,
+      "status": "abstained",
+      "latency_ms": 66980,
+      "graph_ms": 127,
+      "model_ms": 66852,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1325,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 17,
+      "status": "abstained",
+      "latency_ms": 93187,
+      "graph_ms": 76,
+      "model_ms": 93110,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1701,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 18,
+      "status": "abstained",
+      "latency_ms": 78510,
+      "graph_ms": 33,
+      "model_ms": 78476,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1537,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    },
+    {
+      "index": 19,
+      "status": "abstained",
+      "latency_ms": 59172,
+      "graph_ms": 903,
+      "model_ms": 58268,
+      "validate_ms": 0,
+      "render_ms": 0,
+      "turns": 2,
+      "usage": {
+        "calls": 2,
+        "input_tokens": 1317,
+        "output_tokens": 1439,
+        "provider": "ollama",
+        "model": "qwen3:4b"
+      }
+    }
+  ],
+  "end_to_end_ms": {
+    "n": 20,
+    "errors": 0,
+    "min": 48542,
+    "p50": 63482,
+    "p95": 93187,
+    "max": 102236
+  },
+  "graph_ms": {
+    "n": 20,
+    "errors": 0,
+    "min": 15,
+    "p50": 87,
+    "p95": 569,
+    "max": 903
+  },
+  "model_ms": {
+    "n": 20,
+    "errors": 0,
+    "min": 48473,
+    "p50": 63447,
+    "p95": 93110,
+    "max": 101984
+  },
+  "validate_ms": {
+    "n": 20,
+    "errors": 0,
+    "min": 0,
+    "p50": 0,
+    "p95": 0,
+    "max": 0
+  },
+  "render_ms": {
+    "n": 20,
+    "errors": 0,
+    "min": 0,
+    "p50": 0,
+    "p95": 0,
+    "max": 0
+  },
+  "usage_totals": {
+    "calls": 40,
+    "input_tokens": 26340,
+    "output_tokens": 29268
+  }
+}

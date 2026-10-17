@@ -85,6 +85,11 @@ func (o *Ollama) Decider() (Decide, *Usage) {
 		}
 		body, marshalErr := json.Marshal(map[string]interface{}{
 			"model": o.Model, "stream": false, "format": format,
+			// This step is strict JSON selection from retrieved facts, so a
+			// qwen3-style thinking trace is pure output-token latency with no
+			// grounding value (docs/LATENCY_REPORT.md). Non-thinking models
+			// ignore the flag.
+			"think":   false,
 			"options": map[string]interface{}{"temperature": 0, "seed": 42, "num_ctx": 16384, "num_predict": 1800},
 			"messages": []map[string]string{{"role": "system", "content": system + `
 Choose one JSON action using the supplied schema. A retrieve action supplies an entity key/name and the relationship types needed for THIS QUESTION. An answer action selects actual evidence IDs; claims must be empty when no retrieved relationship answers the question.

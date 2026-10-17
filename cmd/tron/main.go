@@ -58,6 +58,9 @@ func main() {
 		if _, err := seed.Load(c); err != nil {
 			fatal(err)
 		}
+		if err := evaluation.LoadFixtures(c); err != nil {
+			fatal(err)
+		}
 		if os.Getenv("TRON_EVAL_TRACE") == "1" {
 			model.Trace = func(s string) { fmt.Fprintln(os.Stderr, s) }
 		}
@@ -105,6 +108,8 @@ func main() {
 		enc.SetIndent("", "  ")
 		enc.Encode(map[string]interface{}{"alerts": alerts, "count": len(alerts)})
 
+	case len(os.Args) >= 2 && os.Args[1] == "bench":
+		benchMain(addr)
 	case len(os.Args) == 2 && os.Args[1] == "constraints":
 		c := connect(addr)
 		defer c.Close()
@@ -264,6 +269,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       tron constraints   create and wait for per-label database uniqueness")
 		fmt.Fprintln(os.Stderr, "       tron identity-link <alias> <canonical> <source>  record a reviewed mapping")
 		fmt.Fprintln(os.Stderr, "       tron import <file.json>  upsert explicitly mapped source records")
+		fmt.Fprintln(os.Stderr, "       tron bench [warmup] [iterations]  measure the three-hop question latency phases (TRON_OLLAMA_MODEL)")
 		os.Exit(2)
 	}
 }
