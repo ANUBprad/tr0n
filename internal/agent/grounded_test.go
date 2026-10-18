@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ANUBprad/tr0n/internal/graph"
+	"github.com/ANUBprad/tr0n/internal/knowledge"
 	"github.com/ANUBprad/tr0n/internal/seed"
 )
 
@@ -337,6 +338,38 @@ func TestGroundedAuthorPathStatesTheConnectingRelationship(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestWithAuthorPathAddsOnlyRetrievedAuthorEdges locks the gate that keeps the
+// change inert until an AUTHORED edge was actually retrieved, and the fact that
+// the claims it adds are those retrieved edges, anchored to their own subject.
+func TestWithAuthorPathAddsOnlyRetrievedAuthorEdges(t *testing.T) {
+	claims := []knowledge.Claim{{Text: "x", Layer: knowledge.LayerFact, Paths: []string{"s1"}}}
+	grounding := []graph.ClaimGrounding{{Subject: "decision:3", Relation: "SUPPORTED_BY", EvidenceIDs: []string{"s1"}}}
+	support := graph.EvidenceContext{Entity: &graph.NodeRef{Key: "decision:3"}, Facts: []graph.EvidenceFact{
+		{ID: "s1", Entity: "decision:3", Relation: "SUPPORTED_BY", Direction: "out", Neighbor: graph.NodeRef{Key: "doc:3"}},
+	}}
+	doc := graph.EvidenceContext{Entity: &graph.NodeRef{Key: "doc:3"}, Facts: []graph.EvidenceFact{
+		{ID: "a1", Entity: "doc:3", Relation: "AUTHORED", Direction: "in", Neighbor: graph.NodeRef{Key: "person:40"}},
+	}}
+	// No AUTHORED edge retrieved: the answer is left exactly as the model made it.
+	if nc, ng := withAuthorPath(claims, grounding, "decision:3", []graph.EvidenceContext{support}); len(nc) != 1 || len(ng) != 1 {
+		t.Fatalf("unchanged without an AUTHORED edge: %d claims %d grounding", len(nc), len(ng))
+	}
+	// With the AUTHORED edge retrieved, the connecting edge the model dropped is
+	// stated too, and the cited fact is not repeated.
+	nc, ng := withAuthorPath(claims, grounding, "decision:3", []graph.EvidenceContext{support, doc})
+	if len(nc) != 2 || len(ng) != 2 {
+		t.Fatalf("author chain not added: %+v %+v", nc, ng)
+	}
+	got := map[string]bool{}
+	for _, g := range ng {
+		got[g.Subject+"|"+g.Relation] = true
+	}
+	// Each added claim is the retrieved edge itself, anchored to its own subject.
+	if !got["decision:3|SUPPORTED_BY"] || !got["doc:3|AUTHORED"] {
+		t.Fatalf("added claims must be the retrieved edges: %+v", ng)
 	}
 }
 

@@ -397,6 +397,12 @@ func asksForAuthorship(question string) bool {
 // Facts the model already cited are not repeated. Each added fact becomes its
 // own claim anchored to its own subject and relation, so citation validation
 // still applies unchanged; only facts retrieval actually returned are added.
+//
+// ponytail: the added claims reuse the existing per-fact rendering, so the path
+// is a list of retrieved edges in chain order rather than a normalized path
+// expression, and an edge the model already cited can therefore render after the
+// edges added here. Fine while a path is at most a few hops; revisit if a query
+// ever needs a longer chain or a single path sentence.
 func withAuthorPath(claims []knowledge.Claim, grounding []graph.ClaimGrounding, target string, contexts []graph.EvidenceContext) ([]knowledge.Claim, []graph.ClaimGrounding) {
 	if target == "" && len(contexts) > 0 && contexts[0].Entity != nil {
 		target = contexts[0].Entity.Key
