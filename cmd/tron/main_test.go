@@ -22,3 +22,24 @@ func TestServerTimeoutsConfigured(t *testing.T) {
 		t.Error("IdleTimeout must be non-zero")
 	}
 }
+
+
+// TestHTTPListenAddr keeps the local default while honoring Render's assigned port.
+func TestHTTPListenAddr(t *testing.T) {
+	tests := []struct {
+		name, configured, port, want string
+	}{
+		{"explicit address wins", "0.0.0.0:8080", "10000", "0.0.0.0:8080"},
+		{"Render port binds publicly", "", "10000", "0.0.0.0:10000"},
+		{"local default remains", "", "", "127.0.0.1:8080"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("TRON_HTTP_ADDR", tc.configured)
+			t.Setenv("PORT", tc.port)
+			if got := httpListenAddr(); got != tc.want {
+				t.Fatalf("httpListenAddr() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
