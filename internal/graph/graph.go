@@ -3,7 +3,10 @@
 package graph
 
 import (
+	"crypto/tls"
 	"fmt"
+	"os"
+	"strconv"
 	"sort"
 	"strings"
 	"sync"
@@ -33,11 +36,25 @@ type Client struct {
 // ponytail: no context until falkordb-go's query API takes one;
 // upgrade path: thread ctx through once the client supports cancellation.
 func New(addr, graphName string) (*Client, error) {
-	db, err := falkordb.FalkorDBNew(&falkordb.ConnectionOption{Addr: addr})
+	db, err := falkordb.FalkorDBNew(connectionOptions(addr))
 	if err != nil {
 		return nil, fmt.Errorf("connect falkordb at %s: %w", addr, err)
 	}
 	return &Client{name: graphName, db: db, g: db.SelectGraph(graphName)}, nil
+}
+
+// connectionOptions keeps local defaults while allowing managed FalkorDB
+// credentials and optional TLS to be supplied through the deployment environment.
+func connectionOptions(addr string) *falkordb.ConnectionOption {
+	options := &falkordb.ConnectionOption{
+		Addr:     addr,
+		Username: os.Getenv("TRON_FALKOR_USERNAME"),
+		Password: os.Getenv("TRON_FALKOR_PASSWORD"),
+	}
+	if enabled, _ := strconv.ParseBool(os.Getenv("TRON_FALKOR_TLS")); enabled {
+		options.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	return options
 }
 
 func (c *Client) Close() error {
