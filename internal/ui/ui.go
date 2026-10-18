@@ -6,10 +6,11 @@
 package ui
 
 import (
-	_ "embed"
+	"embed"
 	"errors"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"log"
 	"net/http"
 	"sort"
@@ -32,6 +33,9 @@ var appCSS string
 
 //go:embed app.js
 var appJS string
+
+//go:embed hero-assets/*
+var heroAssets embed.FS
 
 // question is one built-in prompt on the index page. The set is fixed
 // (DEMO_SPEC: prepared queries for reliability).
@@ -69,6 +73,8 @@ var errUnknownQuestion = errors.New("unknown question id")
 // Handler serves "/" (question index) and "/?q=<id>" (answer + panel).
 func Handler(c *graph.Client) http.Handler {
 	tmpl := template.Must(template.New("page").Parse(pageHTML))
+	heroFS, _ := fs.Sub(heroAssets, "hero-assets")
+	heroHandler := http.StripPrefix("/hero-assets/", http.FileServer(http.FS(heroFS)))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" && r.Method != "HEAD" {
 			w.Header().Set("Allow", "GET, HEAD")
@@ -76,6 +82,10 @@ func Handler(c *graph.Client) http.Handler {
 			return
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if strings.HasPrefix(r.URL.Path, "/hero-assets/") {
+			heroHandler.ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/app.css" {
 			w.Header().Set("Content-Type", "text/css; charset=utf-8")
 			fmt.Fprint(w, appCSS)
