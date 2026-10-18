@@ -216,6 +216,130 @@ func TestGroundedReportPhaseTiming(t *testing.T) {
 	})
 }
 
+// TestLinkFacts pins the chain builder behind withAuthorPath: shortest chain
+// over retrieved contexts only, direction-agnostic, nil when nothing connects.
+func TestLinkFacts(t *testing.T) {
+	contexts := []graph.EvidenceContext{
+		{Entity: &graph.NodeRef{Key: "service:x"}, Facts: []graph.EvidenceFact{
+			{ID: "h1", Entity: "service:x", Relation: "HAS_REPO", Direction: "out", Neighbor: graph.NodeRef{Key: "repo:x"}},
+		}},
+		{Entity: &graph.NodeRef{Key: "repo:x"}, Facts: []graph.EvidenceFact{
+			{ID: "m1", Entity: "repo:x", Relation: "MODIFIED", Direction: "in", Neighbor: graph.NodeRef{Key: "pr:x"}},
+			{ID: "m2", Entity: "repo:x", Relation: "MODIFIED", Direction: "in", Neighbor: graph.NodeRef{Key: "pr:unretrieved"}},
+		}},
+		{Entity: &graph.NodeRef{Key: "pr:x"}, Facts: []graph.EvidenceFact{
+			{ID: "a1", Entity: "pr:x", Relation: "AUTHORED", Direction: "in", Neighbor: graph.NodeRef{Key: "person:x"}},
+		}},
+	}
+	path := linkFacts("service:x", "pr:x", contexts)
+	if len(path) != 2 || path[0].ID != "h1" || path[1].ID != "m1" {
+		t.Fatalf("shortest retrieved chain: %+v", path)
+	}
+	// A hop to a node that was never retrieved as its own context is not taken,
+	// and the chain stops rather than continuing past the endpoint.
+	if linkFacts("service:x", "person:x", contexts) != nil {
+		t.Fatal("chain must stop at retrieved contexts")
+	}
+	if linkFacts("service:x", "service:x", contexts) != nil {
+		t.Fatal("an endpoint with no chain adds nothing")
+	}
+	decision := []graph.EvidenceContext{
+		{Entity: &graph.NodeRef{Key: "decision:3"}, Facts: []graph.EvidenceFact{
+			{ID: "s3", Entity: "decision:3", Relation: "SUPPORTED_BY", Direction: "out", Neighbor: graph.NodeRef{Key: "doc:3"}},
+		}},
+		{Entity: &graph.NodeRef{Key: "doc:3"}, Facts: []graph.EvidenceFact{
+			{ID: "a3", Entity: "doc:3", Relation: "AUTHORED", Direction: "in", Neighbor: graph.NodeRef{Key: "person:40"}},
+		}},
+	}
+	// The connecting fact is the one the model dropped, whatever its direction.
+	if path := linkFacts("decision:3", "doc:3", decision); len(path) != 1 || path[0].ID != "s3" {
+		t.Fatalf("connecting SUPPORTED_BY fact: %+v", path)
+	}
+}
+
+// TestGroundedAuthorPathStatesTheConnectingRelationship locks the root cause of
+// the decision-source-authors failure: when the model cites only the AUTHORED
+// endpoint, the answer must still state the retrieved target -> document edge
+// that connects it, and that added claim must pass citation validation.
+func TestGroundedAuthorPathStatesTheConnectingRelationship(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires FalkorDB")
+	}
+	addr := os.Getenv("TRON_FALKOR_ADDR")
+	if addr == "" {
+		addr = "localhost:6379"
+	}
+	c, err := graph.New(addr, "tron_grounded_author_path_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	defer c.Delete()
+	if _, err := seed.Load(c); err != nil {
+		t.Fatal(err)
+	}
+	// Whatever half of the retrieved path the model happens to cite, the answer
+	// must state the whole retrieved chain target -> document -> author.
+	for _, model := range []string{"author", "support"} {
+		t.Run("model cites only the "+model, func(t *testing.T) {
+			decide := func(ctx context.Context, system string, turns []Turn) (Decision, error) {
+				if len(turns) == 0 {
+					raw, _ := json.Marshal(graph.EvidenceRequest{Entity: "decision:3", Relations: []string{"SUPPORTED_BY"}})
+					return Decision{Calls: []Call{{Name: "assemble_context", Args: raw}}}, nil
+				}
+				// Only an AUTHORED edge reaches the final answer once it is
+				// retrieved; otherwise the first support fact is cited.
+				var all []graph.EvidenceFact
+				for _, tn := range turns {
+					if ec, ok := tn.Result.(graph.EvidenceContext); ok {
+						all = append(all, ec.Facts...)
+					}
+				}
+				var pick *graph.EvidenceFact
+				if model == "author" {
+					for i := range all {
+						if all[i].Relation == "AUTHORED" {
+							pick = &all[i]
+						}
+					}
+				}
+				if pick == nil {
+					for i := range all {
+						if all[i].Relation != "AUTHORED" {
+							pick = &all[i]
+							break
+						}
+					}
+				}
+				if pick == nil {
+					return Decision{Answer: `{"claims":[]}`}, nil
+				}
+				raw, _ := json.Marshal(map[string]interface{}{"claims": []ModelClaim{{Text: "x", Subject: pick.Entity, Relation: pick.Relation, EvidenceIDs: []string{pick.ID}}}})
+				return Decision{Answer: string(raw)}, nil
+			}
+			report, err := GroundedAsk(context.Background(), c, GroundedRequest{
+				Question: "Which documents support the Redis idempotency decision, and who authored them?",
+				Target:   "decision:3",
+			}, decide)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Status != "answered" {
+				t.Fatalf("status %q warnings=%v", report.Status, report.Warnings)
+			}
+			if err := report.Grounded.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			text := strings.ToLower(report.Grounded.Answer.Answer)
+			for _, term := range []string{"supported", "authored"} {
+				if !strings.Contains(text, term) {
+					t.Fatalf("answer omits %q: %q", term, report.Grounded.Answer.Answer)
+				}
+			}
+		})
+	}
+}
+
 func TestConflictingOwners(t *testing.T) {
 	a := graph.EvidenceFact{Entity: "service:x", Relation: "OWNS", Direction: "in", Neighbor: graph.NodeRef{Key: "person:a"}}
 	b := a

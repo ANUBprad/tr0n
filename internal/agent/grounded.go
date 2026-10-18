@@ -298,11 +298,24 @@ Question input: `+string(question), map[string]Tool{"assemble_context": tool})
 			out.Status = "invalid_answer"
 			return out, nil
 		}
-		texts = append(texts, cl.Text)
 		candidate.Answer.Claims = append(candidate.Answer.Claims, knowledge.Claim{Text: cl.Text, Layer: knowledge.LayerFact, Paths: cl.EvidenceIDs})
 		candidate.Grounding = append(candidate.Grounding, graph.ClaimGrounding{Subject: cl.Subject, Relation: cl.Relation, EvidenceIDs: cl.EvidenceIDs})
 	}
+	// An explicit author question asks for a relationship path, not just its
+	// endpoint. In practice the model reliably cites the AUTHORED fact and drops
+	// the retrieved edges that connect the question's target to it, leaving an
+	// author with no stated link to what was asked about. State those connecting
+	// edges deterministically from facts retrieval already returned: each joins
+	// as its own claim anchored to its own subject and relation, so the citation
+	// check below still applies and nothing unretrieved is invented.
+	if asksForAuthorship(req.Question) {
+		candidate.Answer.Claims, candidate.Grounding = withAuthorPath(candidate.Answer.Claims, candidate.Grounding, req.Target, out.Contexts)
+	}
+	for _, c := range candidate.Answer.Claims {
+		texts = append(texts, c.Text)
+	}
 	candidate.Answer.Answer = strings.Join(texts, "\n")
+
 	validateStart := time.Now()
 	validateErr := candidate.Validate()
 	validateMS = time.Since(validateStart).Milliseconds()
@@ -376,6 +389,108 @@ func asksForAuthorship(question string) bool {
 		}
 	}
 	return false
+}
+
+// withAuthorPath prepends the retrieved facts that chain from the question's
+// target entity to each AUTHORED edge the loop retrieved, so an explicit author
+// question is answered with the relationship path and not only one endpoint.
+// Facts the model already cited are not repeated. Each added fact becomes its
+// own claim anchored to its own subject and relation, so citation validation
+// still applies unchanged; only facts retrieval actually returned are added.
+func withAuthorPath(claims []knowledge.Claim, grounding []graph.ClaimGrounding, target string, contexts []graph.EvidenceContext) ([]knowledge.Claim, []graph.ClaimGrounding) {
+	if target == "" && len(contexts) > 0 && contexts[0].Entity != nil {
+		target = contexts[0].Entity.Key
+	}
+	cited := map[string]bool{}
+	for _, gr := range grounding {
+		for _, id := range gr.EvidenceIDs {
+			cited[id] = true
+		}
+	}
+	pathClaims := []knowledge.Claim{}
+	pathGrounding := []graph.ClaimGrounding{}
+	seen := map[string]bool{}
+	add := func(f graph.EvidenceFact) {
+		if cited[f.ID] || seen[f.ID] {
+			return
+		}
+		seen[f.ID] = true
+		pathClaims = append(pathClaims, knowledge.Claim{Text: f.Relation, Layer: knowledge.LayerFact, Paths: []string{f.ID}})
+		pathGrounding = append(pathGrounding, graph.ClaimGrounding{Subject: f.Entity, Relation: f.Relation, EvidenceIDs: []string{f.ID}})
+	}
+	for _, ec := range contexts {
+		for _, f := range ec.Facts {
+			if f.Relation != "AUTHORED" {
+				continue
+			}
+			// The AUTHORED fact is anchored to the document or pull request it
+			// was retrieved for; state the retrieved chain from the question's
+			// target to that anchor, then the author edge itself.
+			for _, link := range linkFacts(target, f.Entity, contexts) {
+				add(link)
+			}
+			add(f)
+		}
+	}
+	return append(pathClaims, claims...), append(pathGrounding, grounding...)
+}
+
+// linkFacts returns the retrieved facts on a shortest chain of retrieved
+// contexts from `from` to `to`, in path order, or nil when no chain exists.
+// Edge direction does not affect connectivity. A hop is taken only between two
+// retrieved context entities, so the chain stays on evidence the loop actually
+// pulled and never wanders onto an unrelated neighbor that shares a node.
+func linkFacts(from, to string, contexts []graph.EvidenceContext) []graph.EvidenceFact {
+	entities := map[string]bool{}
+	for _, ec := range contexts {
+		if ec.Entity != nil {
+			entities[ec.Entity.Key] = true
+		}
+	}
+	if from == to || !entities[from] || !entities[to] {
+		return nil
+	}
+	prev := map[string]graph.EvidenceFact{}
+	seen := map[string]bool{from: true}
+	for queue := []string{from}; len(queue) > 0 && !seen[to]; {
+		cur := queue[0]
+		queue = queue[1:]
+		for _, ec := range contexts {
+			for _, f := range ec.Facts {
+				next := f.Neighbor.Key
+				switch cur {
+				case f.Entity:
+				case f.Neighbor.Key:
+					next = f.Entity
+				default:
+					continue
+				}
+				if next == cur || !entities[next] || seen[next] {
+					continue
+				}
+				seen[next] = true
+				prev[next] = f
+				queue = append(queue, next)
+			}
+		}
+	}
+	if !seen[to] {
+		return nil
+	}
+	path := []graph.EvidenceFact{}
+	for cur := to; cur != from; {
+		f := prev[cur]
+		path = append(path, f)
+		if f.Neighbor.Key == cur {
+			cur = f.Entity
+		} else {
+			cur = f.Neighbor.Key
+		}
+	}
+	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
+		path[i], path[j] = path[j], path[i]
+	}
+	return path
 }
 
 // nextAuthorRetrieval follows only observed edges toward an AUTHORED edge:
