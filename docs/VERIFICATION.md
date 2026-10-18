@@ -1,6 +1,12 @@
 # Integration verification
 
-## Current release checks — 2026-10-17
+## Current release checks — 2026-10-18
+
+- `go test -count=1 -p 1 ./...`: all 11 packages pass against the running local FalkorDB service.
+- `go vet ./...` and `go build -o tron.exe ./cmd/tron`: pass. `gofmt` is clean on LF-normalised copies (the checkout is CRLF). `-race` remains unavailable on this host (`go: -race requires cgo`, no C compiler); the CI/container job covers it.
+- Grounded-answer loop: the deterministic progress guard (`commit d0dedca`) and the author-path fix (`commit 3ff7473`) are covered by no-model tests, and a fresh 3-trial run of the 21-case corpus scored **21/21 rubric and 21/21 citation-valid with zero step-budget exhaustion** (`qwen3:4b`, thinking off) — see [`RELIABILITY_REPORT.md`](RELIABILITY_REPORT.md) and the raw artifact `artifacts/evaluation/reliability-trials-2026-10-18.json`; the pre-fix artifact is preserved alongside it. Only `decision-source-authors` differs from the pre-fix run, and each of its three outputs was read individually, not just scored.
+
+## Prior release checks — 2026-10-17
 
 - Working branch: `submission/company-brain`, based on `submission/main`; see git history for the published revision.
 - `go test -count=1 ./...`: all packages pass against the running local FalkorDB service.

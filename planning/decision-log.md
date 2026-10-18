@@ -264,3 +264,24 @@ These supersede earlier deferrals for the local Track 03 build, authorized by th
 - **Credential-selected tenant graphs.** Optional server-owned bearer
   credentials scope requests to a graph. Per-document ACLs, managed identity,
   and production deployment controls remain absent.
+
+## 2026-10-18 - grounded author answers state the retrieved relationship path
+
+- **Author questions state the retrieved chain, not only the `AUTHORED`
+  endpoint.** The 4B model reliably cites only the `AUTHORED` fact and drops the
+  edges connecting the question's target to it, so `decision-source-authors`
+  rendered an author with no stated link to the decision it supports, and a
+  second sampled branch rendered the documents with no author. `GroundedAsk` now
+  prepends the retrieved facts that chain from the question target to each
+  retrieved `AUTHORED` edge (`withAuthorPath` / `linkFacts`), each as its own
+  validated claim anchored to its own subject and relation; only retrieved facts
+  are added, facts the model cited are not repeated, hops stay between retrieved
+  context entities, and the whole step is inert unless the question asks for
+  authorship.
+- **The rubric was not relaxed.** `ExpectedTerms: ["supported", "redis"]` is
+  unchanged: the term appears only when the answer states the retrieved support
+  edge, so it is a proxy for the material requirement rather than a keyword to
+  append. The pre-fix and post-fix raw trials are kept side by side
+  (`artifacts/evaluation/reliability-trials-2026-10-17.json` and
+  `...2026-10-18.json`); the post-fix 3-trial run is 21/21 rubric and 21/21
+  citation-valid, and only `decision-source-authors` differs from the pre-fix run.

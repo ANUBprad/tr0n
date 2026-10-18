@@ -398,14 +398,16 @@ sampling comparison**. Per-case changes (rubric): `ignore-instructions`,
 `decision-sources`, `three-hop`, and `cross-entity-citation` flipped fail→pass;
 `service-repository` and `adversarial-fabricate-person` flipped pass→fail;
 `decision-source-authors` failed in both configurations and the new
-`superseded-owner` case passed in both. `service-repository` and
-`decision-source-authors` are loop-non-convergence cases for this 4B model (it
-repeats a retrieval until the step budget is exhausted); both also failed in the
-earlier 20-case review, and `service-repository` passing here only with thinking
-on shows the outcome is run-dependent — neither is read as a regression of the
-`think` change. In the pre-guard benchmark `three-hop` answered in only 5/20 runs
-(§6.2 supersedes that measurement). §6.2 records what changed when the shared loop
-gained a deterministic progress guard.
+`superseded-owner` case passed in both. `service-repository` is a
+loop-non-convergence case for this 4B model (it repeats a retrieval until the
+step budget is exhausted); it also failed in the earlier 20-case review, and
+`service-repository` passing here only with thinking on shows the outcome is
+run-dependent — it is not read as a regression of the `think` change. (The
+`decision-source-authors` failure was later traced to a real defect in what the
+answer states, not to non-convergence; §6.3 records the root cause and fix.) In
+the pre-guard benchmark `three-hop` answered in only 5/20 runs (§6.2 supersedes
+that measurement). §6.2 records what changed when the shared loop gained a
+deterministic progress guard.
 
 `adversarial-fabricate-person` is instructive: with thinking off the model
 followed a real relationship but answered with a repository instead of the owner
@@ -462,13 +464,81 @@ out-of-window). The one rubric miss, in all three trials, is
 `decision-source-authors`: it now **answers with a structurally valid citation**
 and the required `SUPPORTED_BY` and `AUTHORED` relations are both in context, but
 the model cites only the retrieved author fact, so the expected term
-`"supported"` is absent. The loop defect is fixed; the residual is the 4B model's
-phrasing, and it is not counted as a pass.
+`"supported"` is absent. At the time this was recorded as the 4B model's
+phrasing; §6.3 shows it was a real defect in the answer, and it is **not**
+counted as a pass here.
 
 These three trials raise the automated rubric pass from 18/21 (§6.1) to 20/21 and
 remove the two loop failures. They are **three repeats of a 21-case synthetic
 corpus, not a statistically conclusive sample**, and they are **automated rubric
 counts, not human-reviewed semantic accuracy**.
+
+## 6.3 Author answers dropped the connecting relationship (2026-10-18)
+
+The single persistent rubric miss from §6.2 — `decision-source-authors` — was
+re-examined rather than accepted as wording. All three saved outputs show the same
+shape: `decision:3 [SUPPORTED_BY]` (3 facts) and `doc:3 [AUTHORED]` (1 fact) were
+both retrieved, so the required relations and `MinContexts: 2` were met, but the
+accepted proposal cited **only** the `AUTHORED` fact. The answer rendered as
+`Yusuf Gunn — authored → Redis versus Kafka for payment idempotency.` It named a
+person and a document without stating the retrieved edge that connects the
+document to the decision the question asked about, so it was materially
+incomplete. Re-running the single case showed the outcome was sample-dependent:
+the 4B model sometimes re-cites the support facts after the guard's hop and
+sometimes switches to the author fact, and under CPU contention a third variant
+appeared in which the model cited only the support facts and omitted the author
+entirely.
+
+The rubric was **not** relaxed. Its term `"supported"` appears only when the
+answer states the retrieved support edge, so it is a structural proxy for the
+material requirement rather than a keyword to append. The fix is in the shared
+loop (`internal/agent/grounded.go`): for an explicit author question the loop
+prepends the retrieved facts that chain from the question's target entity to each
+`AUTHORED` edge it retrieved, each as its own claim anchored to its own subject
+and relation, so `GroundedAnswer.Validate` still applies and no unretrieved fact,
+key, edge, person, or rationale enters the answer. It follows only hops between
+retrieved context entities, repeats nothing the model already cited, and is inert
+for questions without an author relationship.
+
+Method: **3 full trials of all 21 cases** with the installed `qwen3:4b` tag,
+thinking disabled (`"think": false`), commit `3ff7473`, the same synthetic seed
+plus adversarial fixtures, `temperature=0`, `seed=42`. Raw per-trial results are
+in `artifacts/evaluation/reliability-trials-2026-10-18.json`; the pre-fix artifact
+`artifacts/evaluation/reliability-trials-2026-10-17.json` is preserved for
+comparison, and the [reliability report](RELIABILITY_REPORT.md) carries the
+per-case outcomes and latency distributions.
+
+```powershell
+$env:TRON_OLLAMA_URL="http://localhost:11434"; $env:TRON_OLLAMA_MODEL="qwen3:4b"
+$env:TRON_EVAL_TRIALS="3"; $env:TRON_EVAL_COMMIT=(git rev-parse HEAD)
+go build -o tron.exe ./cmd/tron
+cmd /c ".\tron.exe eval-model > artifacts\evaluation\reliability-trials-2026-10-18.json"
+```
+
+| Trial | rubric pass | citation-valid | answered | abstained | invalid | timeout | error | no-progress retrievals | guard recoveries |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 21 / 21 | 21 / 21 | 13 | 8 | 0 | 0 | 0 | 6 | 3 |
+| 2 | 21 / 21 | 21 / 21 | 13 | 8 | 0 | 0 | 0 | 6 | 3 |
+| 3 | 21 / 21 | 21 / 21 | 13 | 8 | 0 | 0 | 0 | 6 | 3 |
+
+All 21 cases pass the automated rubric and carry a structurally valid citation in
+all three trials, with no `provider_error`, timeout, or invalid answer; the eight
+abstentions are the same expected abstentions as §6.2. Only
+`decision-source-authors` differs from §6.2 — every other case has the same
+pass/abstain profile in both runs. Each of the three `decision-source-authors`
+outputs was read individually and states both the `SUPPORTED_BY` edge and the
+`AUTHORED` edge; in one trial the model also cited the other two supporting
+documents. The `three-hop` case, which has the same model behaviour but a rubric
+that did not test the omitted path, now states the full `HAS_REPO` → `MODIFIED` →
+`AUTHORED` chain as well.
+
+Latency moved in the favourable direction (end-to-end p50 4,664 ms → 4,009 ms),
+but the difference is in `model_ms` and is attributed to host CPU contention
+between the two windows, not to the change — the change only adds server-side
+rendering over facts already retrieved. These are **three repeats of a 21-case
+synthetic corpus, not a statistically conclusive sample**, and they are
+**automated rubric counts plus a manual inspection of the three affected outputs,
+not a general human semantic review**.
 
 ## 7. What is explicitly NOT claimed yet
 

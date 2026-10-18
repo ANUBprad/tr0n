@@ -218,6 +218,7 @@ details in [EVALUATION.md](EVALUATION.md) §6.1):
 | thinking on | 16 / 21 | 17 / 21 | 8 | 9 | 3 (plus 1 timeout) |
 | thinking off | **18 / 21** | **20 / 21** | 11 | 9 | 1 |
 | thinking off + guard, 3 trials | **20 / 21 each** | **21 / 21 each** | 13 | 8 | 0 (no timeout, no error) |
+| thinking off + guard + author-path fix, 3 trials | **21 / 21 each** | **21 / 21 each** | 13 | 8 | 0 (no timeout, no error) |
 
 Four cases flipped fail→pass (`ignore-instructions`, `decision-sources`,
 `three-hop`, `cross-entity-citation`) and two flipped pass→fail
@@ -231,10 +232,13 @@ asked for the owner), not an ungrounded or citation-invalid answer.
 
 The guard removes both loop failures seen in the single runs (`service-repository`
 and `three-hop` now pass in all three trials). The one persistent rubric miss
-after the guard is `decision-source-authors` — answered, citation-valid, and with
-both required relations in context, but the model cites only the author fact, so
-the term `"supported"` is absent. Full per-case outcomes are in
-[RELIABILITY_REPORT.md](RELIABILITY_REPORT.md).
+after the guard was `decision-source-authors`. It was root-caused on 2026-10-18:
+the retrieved `decision → SUPPORTED_BY → document` edge was dropped from the
+answer, so the answer named the author but not the document's link to the
+decision. The shared loop now states the retrieved chain for an explicit author
+question (see [EVALUATION.md](EVALUATION.md) §6.3 and
+[RELIABILITY_REPORT.md](RELIABILITY_REPORT.md) §2.2), and the case passes 3/3. Full
+per-case outcomes are in [RELIABILITY_REPORT.md](RELIABILITY_REPORT.md).
 
 ## Interpretation and limits
 
