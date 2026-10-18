@@ -5,3 +5,4 @@ tmp
 artifacts
 *.exe
 *.log
+frontend/node_modules
