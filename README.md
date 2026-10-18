@@ -10,10 +10,10 @@ The default agent uses deterministic routing across five workflows and needs no 
 
 | Review | Link |
 |---|---|
-| See the product | [60-second walkthrough](artifacts/demo/tron-walkthrough.mp4) · [Download video](https://raw.githubusercontent.com/Shashwat-911/tr0n-shashwat/main/artifacts/demo/tron-walkthrough.mp4) |
+| See the product | [60-second walkthrough](artifacts/demo/tron-walkthrough.mp4) · [Download video](https://raw.githubusercontent.com/ANUBprad/tr0n/main/artifacts/demo/tron-walkthrough.mp4) |
 | Run it locally | [Docker setup](#run-locally-with-docker) — no Go installation or API key needed |
 | Understand the graph | [Data model](#graph-data-model-and-queries) · [Cypher query catalog](docs/CYPHER_QUERIES.md) |
-| Inspect the evidence | [Verification report](docs/VERIFICATION.md) · [GitHub Actions](https://github.com/Shashwat-911/tr0n-shashwat/actions) |
+| Inspect the evidence | [Verification report](docs/VERIFICATION.md) · [GitHub Actions](https://github.com/ANUBprad/tr0n/actions) |
 | Understand contributions | [13-step implementation guide](docs/COMPLETION_STEPS.md) · [AI disclosure](#ai-assistance-and-contribution-history) |
 
 The video is a captioned sequence of screenshots captured from the running app. Complete local setup is provided below; there is no hosted application deployment.
@@ -88,7 +88,7 @@ Expand **Evidence paths**, inspect **Source records**, and click nodes in **Conn
 Install Docker Desktop (Windows/macOS) or Docker Engine with Compose (Linux), then:
 
 ```sh
-git clone https://github.com/Shashwat-911/tr0n-shashwat.git
+git clone https://github.com/ANUBprad/tr0n.git
 cd tr0n-shashwat
 docker compose up -d --wait falkordb
 docker compose build app
@@ -225,12 +225,12 @@ Integration tests use dedicated `tron_*_test` graphs and remove them afterwards.
 | Requirement | Where to review |
 |---|---|
 | Track | **Track 03 — Company Brain** |
-| Public source | [Shashwat-911/tr0n-shashwat](https://github.com/Shashwat-911/tr0n-shashwat) |
+| Public source | [ANUBprad/tr0n](https://github.com/ANUBprad/tr0n) |
 | Setup or deployment | [Complete local Docker setup](#run-locally-with-docker) |
 | Graph model | [GRAPH_MODEL.md](docs/GRAPH_MODEL.md) |
 | Cypher and graph logic | [CYPHER_QUERIES.md](docs/CYPHER_QUERIES.md) · [Executable operations](internal/graph/graph.go) |
-| Working-product demonstration | [Captioned walkthrough](artifacts/demo/tron-walkthrough.mp4) · [Direct download](https://raw.githubusercontent.com/Shashwat-911/tr0n-shashwat/main/artifacts/demo/tron-walkthrough.mp4) |
-| Verification | [Report](docs/VERIFICATION.md) · [CI](https://github.com/Shashwat-911/tr0n-shashwat/actions) · `docker compose run --rm app demo` |
+| Working-product demonstration | [Captioned walkthrough](artifacts/demo/tron-walkthrough.mp4) · [Direct download](https://raw.githubusercontent.com/ANUBprad/tr0n/main/artifacts/demo/tron-walkthrough.mp4) |
+| Verification | [Report](docs/VERIFICATION.md) · [CI](https://github.com/ANUBprad/tr0n/actions) · `docker compose run --rm app demo` |
 | Data provenance | Fictional seeded company and synthetic example imports |
 | AI disclosure | Below |
 
