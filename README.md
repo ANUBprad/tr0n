@@ -89,7 +89,7 @@ Install Docker Desktop (Windows/macOS) or Docker Engine with Compose (Linux), th
 
 ```sh
 git clone https://github.com/ANUBprad/tr0n.git
-cd tr0n-shashwat
+cd tr0n
 docker compose up -d --wait falkordb
 docker compose build app
 docker compose run --rm app seed
