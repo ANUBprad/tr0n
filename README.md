@@ -14,6 +14,7 @@ The default agent uses deterministic routing across five workflows and needs no 
 | Run it locally | [Docker setup](#run-locally-with-docker) — no Go installation or API key needed |
 | Understand the graph | [Data model](#graph-data-model-and-queries) · [Cypher query catalog](docs/CYPHER_QUERIES.md) |
 | Inspect the evidence | [Verification report](docs/VERIFICATION.md) · [GitHub Actions](https://github.com/ANUBprad/tr0n/actions) |
+| Understand the architecture | [Architecture & System Design](docs/ARCHITECTURE.md) |
 | Understand contributions | [13-step implementation guide](docs/COMPLETION_STEPS.md) · [AI disclosure](#ai-assistance-and-contribution-history) |
 
 The walkthrough is a captioned sequence of screenshots captured from the running app, not a continuous live recording. A Render-hosted preview is being brought online at [tr0n.onrender.com](https://tr0n.onrender.com); as of 2026-10-18, the web process starts but `/v1/health` reports `unavailable` while its managed FalkorDB connection is being resolved. Treat the local Docker path below as the reproducible demo until the hosted health check passes.
