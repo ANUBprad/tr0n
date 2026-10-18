@@ -221,10 +221,7 @@ func main() {
 	case len(os.Args) == 2 && os.Args[1] == "serve":
 		c := connect(addr)
 		defer c.Close()
-		httpAddr := os.Getenv("TRON_HTTP_ADDR")
-		if httpAddr == "" {
-			httpAddr = "127.0.0.1:8080"
-		}
+		httpAddr := httpListenAddr()
 		mux := http.NewServeMux()
 		var model *agent.Ollama
 		if endpoint := os.Getenv("TRON_OLLAMA_URL"); endpoint != "" {
@@ -317,4 +314,16 @@ func graphName() string {
 		return value
 	}
 	return "tron"
+}
+
+
+// httpListenAddr preserves the local default while honoring Render's PORT.
+func httpListenAddr() string {
+	if addr := os.Getenv("TRON_HTTP_ADDR"); addr != "" {
+		return addr
+	}
+	if port := os.Getenv("PORT"); port != "" {
+		return "0.0.0.0:" + port
+	}
+	return "127.0.0.1:8080"
 }
