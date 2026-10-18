@@ -51,6 +51,20 @@ func get(t *testing.T, url string) (int, string) {
 }
 
 // Index lists all five built-in questions (the no-LLM demo path).
+func TestHeroAssets(t *testing.T) {
+	handler := Handler(nil)
+	for _, path := range []string{"/", "/hero-assets/hero.js", "/hero-assets/hero.css"} {
+		r := httptest.NewRecorder()
+		handler.ServeHTTP(r, httptest.NewRequest(http.MethodGet, path, nil))
+		if r.Code != http.StatusOK || r.Body.Len() == 0 {
+			t.Fatalf("GET %s: status %d, bytes %d", path, r.Code, r.Body.Len())
+		}
+		if path == "/" && !strings.Contains(r.Body.String(), "/hero-assets/hero.js") {
+			t.Fatal("landing page missing React entry point")
+		}
+	}
+}
+
 func TestIndex(t *testing.T) {
 	srv := newSeededServer(t)
 	status, body := get(t, srv.URL+"/")
