@@ -1,10 +1,12 @@
 # TRON — Trusted Reasoning & Organizational Nexus
 
-![TRON — Trusted Reasoning & Organizational Nexus](Minimalist%20Tron%20Logo%20on%20Black.png)
+<p align="center"><img src="Tron.%20Geometric%20White%20Logo.png" alt="TRON — Trusted Reasoning & Organizational Nexus" width="180"></p>
 
 **Graph Hacks 2026 · Track 03: Company Brain**
 
 TRON connects people, teams, services, code contributions, documents, chats, tickets, incidents, and decisions in FalkorDB. Ask who owns a service, who has relevant experience, why a decision was made, or who should investigate an incident. Every supported answer returns graph operations, evidence paths, and inspectable source records.
+
+TRON also supports approval-gated, human-reviewed actions: it proposes drafts and handoff artifacts for review instead of executing external actions automatically.
 
 The default agent uses deterministic routing across five workflows and needs no LLM or API key. An optional local Ollama mode chooses bounded graph retrievals and selects cited relationship facts; the server renders their endpoints and predicates instead of trusting generated prose. It resolves names from the graph, asks for clarification when ambiguous, runs bounded graph operations, and separates facts, computed inferences, and recommendations. Removing FalkorDB removes the facts and relationships needed to answer.
 
@@ -12,6 +14,7 @@ The default agent uses deterministic routing across five workflows and needs no 
 
 | Review | Link |
 |---|---|
+| Submission | [Repository](https://github.com/ANUBprad/tr0n) · [Hosted preview](https://tr0n.onrender.com) — preview `/v1/health` is not yet passing; see the deployment note below |
 | See the product | [60-second walkthrough](artifacts/demo/tron-walkthrough.mp4) · [Download video](https://raw.githubusercontent.com/ANUBprad/tr0n/main/artifacts/demo/tron-walkthrough.mp4) |
 | Run it locally | [Docker setup](#run-locally-with-docker) — no Go installation or API key needed |
 | Understand the graph | [Data model](#graph-data-model-and-queries) · [Cypher query catalog](docs/CYPHER_QUERIES.md) |
