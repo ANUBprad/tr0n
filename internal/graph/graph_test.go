@@ -1094,3 +1094,25 @@ func basisByClass(t *testing.T, e knowledge.Expert, class string) knowledge.Basi
 	t.Fatalf("no %s basis for %s: %+v", class, e.Key, e.Basis)
 	return knowledge.Basis{}
 }
+
+
+// TestConnectionOptionsFromEnvironment verifies managed database credentials
+// and opt-in TLS without requiring a live network connection.
+func TestConnectionOptionsFromEnvironment(t *testing.T) {
+	t.Setenv("TRON_FALKOR_USERNAME", "cloud-user")
+	t.Setenv("TRON_FALKOR_PASSWORD", "test-secret")
+	t.Setenv("TRON_FALKOR_TLS", "false")
+
+	options := connectionOptions("db.example:56679")
+	if options.Addr != "db.example:56679" || options.Username != "cloud-user" || options.Password != "test-secret" {
+		t.Fatalf("connection options did not preserve endpoint/credentials: %+v", options)
+	}
+	if options.TLSConfig != nil {
+		t.Fatal("TLS must remain opt-in for local and non-TLS free-tier instances")
+	}
+
+	t.Setenv("TRON_FALKOR_TLS", "true")
+	if options := connectionOptions("db.example:56679"); options.TLSConfig == nil {
+		t.Fatal("TLS should be enabled when TRON_FALKOR_TLS=true")
+	}
+}
