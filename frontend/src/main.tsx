@@ -86,7 +86,7 @@ function App() {
           <button className="nav-link" onClick={() => openWorkspace()}>workspace <Arrow /></button>
           <button className="nav-link" onClick={() => showInfo('graph')}>the graph</button>
           <button className="nav-link" onClick={() => showInfo('about')}>about tron</button>
-          <a className="nav-link" href="https://github.com/Shashwat-911/tr0n-shashwat" target="_blank" rel="noreferrer">source <Arrow /></a>
+          <a className="nav-link" href="https://github.com/ANUBprad/tr0n" target="_blank" rel="noreferrer">source <Arrow /></a>
         </div>
         <button className="hero-cta hidden rounded-full bg-white px-6 py-3 text-sm text-black transition-colors hover:bg-neutral-200 md:block" onClick={() => openWorkspace()}>explore workspace <Arrow /></button>
         <button ref={menuButton} className="menu-toggle rounded-full bg-neutral-900/90 backdrop-blur md:hidden" aria-label={menu ? 'Close navigation' : 'Open navigation'} aria-expanded={menu} aria-controls="mobile-navigation" onClick={() => setMenu(!menu)}><span aria-hidden="true">{menu ? '×' : '☰'}</span></button>

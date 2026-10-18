@@ -9174,7 +9174,7 @@ function g() {
 							}),
 							/* @__PURE__ */ (0, f.jsxs)("a", {
 								className: "nav-link",
-								href: "https://github.com/Shashwat-911/tr0n-shashwat",
+								href: "https://github.com/ANUBprad/tr0n",
 								target: "_blank",
 								rel: "noreferrer",
 								children: ["source ", /* @__PURE__ */ (0, f.jsx)(h, {})]
