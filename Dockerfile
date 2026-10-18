@@ -9,6 +9,6 @@ FROM alpine:3.23
 RUN adduser -D -u 10001 tron
 USER tron
 COPY --from=build /tron /usr/local/bin/tron
-EXPOSE 8080
+EXPOSE 10000
 ENTRYPOINT ["tron"]
 CMD ["serve"]
