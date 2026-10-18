@@ -1,5 +1,7 @@
 # TRON — Trusted Reasoning & Organizational Nexus
 
+![TRON — Trusted Reasoning & Organizational Nexus](Minimalist%20Tron%20Logo%20on%20Black.png)
+
 **Graph Hacks 2026 · Track 03: Company Brain**
 
 TRON connects people, teams, services, code contributions, documents, chats, tickets, incidents, and decisions in FalkorDB. Ask who owns a service, who has relevant experience, why a decision was made, or who should investigate an incident. Every supported answer returns graph operations, evidence paths, and inspectable source records.
